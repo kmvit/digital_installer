@@ -1,16 +1,11 @@
 from django.core.management.base import BaseCommand
 
-from apps.users.models import Role, RoleCode
-
-
 class Command(BaseCommand):
-    help = "Создает системные роли RBAC, если они отсутствуют"
+    help = "Команда оставлена для обратной совместимости"
 
     def handle(self, *args, **options):
-        for role in RoleCode:
-            _, created = Role.objects.get_or_create(
-                code=role.value,
-                defaults={"name": role.label, "is_system": True},
+        self.stdout.write(
+            self.style.WARNING(
+                "Команда seed_roles больше не требуется: роли теперь задаются choices в users.User.role."
             )
-            if created:
-                self.stdout.write(self.style.SUCCESS(f"Создана роль: {role.value}"))
+        )

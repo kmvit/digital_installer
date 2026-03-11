@@ -20,33 +20,26 @@ class UserStatus(models.TextChoices):
     DISMISSED = "dismissed", "Уволен"
 
 
-class Role(models.Model):
-    code = models.CharField(max_length=64, unique=True, choices=RoleCode.choices)
-    name = models.CharField(max_length=128)
-    description = models.TextField(blank=True)
-    is_system = models.BooleanField(default=True)
-
-    class Meta:
-        verbose_name = "Роль"
-        verbose_name_plural = "Роли"
-
-    def __str__(self) -> str:
-        return self.name
-
-
 class User(AbstractUser):
-    phone = models.CharField(max_length=20, blank=True)
+    phone = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name="Телефон",
+    )
     status = models.CharField(
         max_length=16,
         choices=UserStatus.choices,
         default=UserStatus.ACTIVE,
         db_index=True,
+        verbose_name="Статус",
+        help_text="Текущий статус сотрудника в системе.",
     )
-    roles = models.ManyToManyField(
-        Role,
-        blank=True,
-        related_name="users",
-        verbose_name="Роли",
+    role = models.CharField(
+        max_length=32,
+        choices=RoleCode.choices,
+        default=RoleCode.WORKER,
+        db_index=True,
+        verbose_name="Роль",
     )
 
     class Meta:
@@ -57,4 +50,37 @@ class User(AbstractUser):
         return self.username
 
     def has_role(self, role_code: str) -> bool:
-        return self.roles.filter(code=role_code).exists()
+        return self.role == role_code
+
+
+class Brigade(models.Model):
+    name = models.CharField(
+        max_length=128,
+        unique=True,
+        verbose_name="Название бригады",
+    )
+    foreman = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="foreman_brigades",
+        verbose_name="Бригадир",
+    )
+    members = models.ManyToManyField(
+        User,
+        blank=True,
+        related_name="brigades",
+        verbose_name="Состав бригады",
+    )
+    is_active = models.BooleanField(default=True, verbose_name="Активна")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создана")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Обновлена")
+
+    class Meta:
+        verbose_name = "Бригада"
+        verbose_name_plural = "Бригады"
+        ordering = ("name",)
+
+    def __str__(self) -> str:
+        return self.name

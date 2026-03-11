@@ -1,0 +1,65 @@
+# Generated manually to move models from apps.core to apps.pricing state
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+    initial = True
+
+    dependencies = [
+        ("core", "0004_projectobject"),
+    ]
+
+    operations = [
+        migrations.SeparateDatabaseAndState(
+            database_operations=[],
+            state_operations=[
+                migrations.CreateModel(
+                    name="PriceList",
+                    fields=[
+                        ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                        ("title", models.CharField(max_length=200, verbose_name="Название базы расценок")),
+                        ("version", models.CharField(default="1.0", max_length=50, verbose_name="Версия")),
+                        ("is_active", models.BooleanField(default=True, verbose_name="Активна")),
+                        ("created_at", models.DateTimeField(auto_now_add=True, verbose_name="Создана")),
+                        ("updated_at", models.DateTimeField(auto_now=True, verbose_name="Обновлена")),
+                    ],
+                    options={
+                        "verbose_name": "База расценок",
+                        "verbose_name_plural": "Базы расценок",
+                        "ordering": ("-updated_at",),
+                        "db_table": "core_pricelist",
+                        "unique_together": {("title", "version")},
+                    },
+                ),
+                migrations.CreateModel(
+                    name="PriceListItem",
+                    fields=[
+                        ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                        ("section", models.CharField(blank=True, max_length=120, verbose_name="Раздел")),
+                        ("name", models.CharField(max_length=255, verbose_name="Наименование работы")),
+                        ("unit", models.CharField(max_length=30, verbose_name="Единица измерения")),
+                        ("rate", models.DecimalField(decimal_places=2, max_digits=12, verbose_name="Расценка, руб.")),
+                        ("short_description", models.TextField(blank=True, verbose_name="Краткое содержание работ")),
+                        ("created_at", models.DateTimeField(auto_now_add=True, verbose_name="Создана")),
+                        ("updated_at", models.DateTimeField(auto_now=True, verbose_name="Обновлена")),
+                        (
+                            "price_list",
+                            models.ForeignKey(
+                                on_delete=django.db.models.deletion.CASCADE,
+                                related_name="items",
+                                to="pricing.pricelist",
+                                verbose_name="База расценок",
+                            ),
+                        ),
+                    ],
+                    options={
+                        "verbose_name": "Позиция расценки",
+                        "verbose_name_plural": "Позиции расценок",
+                        "ordering": ("section", "name"),
+                        "db_table": "core_pricelistitem",
+                    },
+                ),
+            ],
+        )
+    ]

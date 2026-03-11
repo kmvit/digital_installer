@@ -1,7 +1,12 @@
-from django.urls import path
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
 
-from .views import HealthcheckView
+from .views import HealthcheckView, SystemSettingViewSet
+
+router = DefaultRouter()
+router.register(r"admin/settings", SystemSettingViewSet, basename="admin-settings")
 
 urlpatterns = [
-    path("", HealthcheckView.as_view(), name="healthcheck"),
+    path("health/", HealthcheckView.as_view(), name="healthcheck"),
+    path("", include(router.urls)),
 ]
