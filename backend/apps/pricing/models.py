@@ -26,11 +26,37 @@ class PriceListItem(models.Model):
         related_name="items",
         verbose_name="База расценок",
     )
-    section = models.CharField(max_length=120, blank=True, verbose_name="Раздел")
-    name = models.CharField(max_length=255, verbose_name="Наименование работы")
-    unit = models.CharField(max_length=30, verbose_name="Единица измерения")
-    rate = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Расценка, руб.")
-    short_description = models.TextField(blank=True, verbose_name="Краткое содержание работ")
+    item_number = models.CharField(max_length=64, blank=True, verbose_name="№ п/п")
+    name = models.TextField(verbose_name="Наименование работ")
+    composition = models.TextField(blank=True, verbose_name="Состав работ")
+    unit = models.CharField(max_length=100, blank=True, verbose_name="Единица измерения")
+    note = models.TextField(blank=True, verbose_name="Примечание")
+    base_rate = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        verbose_name="Удельная стоимость за единицу без НДС, руб.",
+    )
+    smr_rate = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="в том числе стоимость СМР (работ), руб.",
+    )
+    materials_rate = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="в том числе стоимость кабеля, материалов, руб.",
+    )
+    pir_rate = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="в том числе стоимость ПИР, руб.",
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создана")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Обновлена")
 
@@ -38,7 +64,7 @@ class PriceListItem(models.Model):
         db_table = "core_pricelistitem"
         verbose_name = "Позиция расценки"
         verbose_name_plural = "Позиции расценок"
-        ordering = ("section", "name")
+        ordering = ("item_number", "name")
 
     def __str__(self) -> str:
         return self.name

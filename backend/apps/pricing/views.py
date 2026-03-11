@@ -14,7 +14,7 @@ class PriceListViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminScope]
 
     def get_queryset(self):
-        queryset = PriceList.objects.annotate(items_count=Count("items"), objects_count=Count("objects"))
+        queryset = PriceList._default_manager.annotate(items_count=Count("items"), objects_count=Count("objects"))
         active = self.request.query_params.get("active")
         if active is not None:
             queryset = queryset.filter(is_active=active.lower() in {"1", "true", "yes"})
