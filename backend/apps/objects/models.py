@@ -63,7 +63,7 @@ class ProjectObject(models.Model):
         "users.Brigade",
         on_delete=models.SET_NULL,
         null=True, blank=True,
-        related_name="objects",
+        related_name="project_objects",
         verbose_name="Прикреплённая бригада",
     )
     deadline = models.DateField(null=True, blank=True, verbose_name="Дэдлайн")
