@@ -7,7 +7,7 @@ from rest_framework.response import Response
 
 from apps.users.permissions import IsAdminScope
 
-from .models import ObjectDocument, ObjectStage, ProjectObject
+from .models import ObjectDocument, ObjectStage, ProjectObject, Stage
 from .serializers import (
     ChangeStageSerializer,
     ObjectDocumentSerializer,
@@ -15,7 +15,16 @@ from .serializers import (
     ProjectObjectDetailSerializer,
     ProjectObjectListSerializer,
     ProjectObjectWriteSerializer,
+    StageSerializer,
 )
+
+
+class StageViewSet(viewsets.ModelViewSet):
+    """CRUD справочника стадий."""
+
+    serializer_class = StageSerializer
+    permission_classes = [IsAdminScope]
+    queryset = Stage.objects.all()
 
 
 class ProjectObjectViewSet(viewsets.ModelViewSet):
@@ -32,10 +41,9 @@ class ProjectObjectViewSet(viewsets.ModelViewSet):
         qs = (
             ProjectObject.objects
             .select_related("price_list", "current_stage", "project_manager", "brigade")
-            .prefetch_related("stages", "documents")
+            .prefetch_related("object_stages__stage", "documents")
         )
 
-        # фильтры
         price_list = self.request.query_params.get("price_list")
         if price_list:
             qs = qs.filter(price_list_id=price_list)
@@ -54,10 +62,7 @@ class ProjectObjectViewSet(viewsets.ModelViewSet):
 
         return qs
 
-    def perform_create(self, serializer):
-        serializer.save()
-
-    # --- смена стадии: PATCH /api/admin/objects/{id}/stage/ ---
+    # --- PATCH /api/admin/objects/{id}/stage/ ---
     @action(detail=True, methods=["patch"], url_path="stage")
     def change_stage(self, request, pk=None):
         obj = self.get_object()
@@ -68,38 +73,44 @@ class ProjectObjectViewSet(viewsets.ModelViewSet):
         actual = ser.validated_data.get("actual_date") or date.today()
 
         try:
-            new_stage = obj.stages.get(pk=stage_id)
-        except ObjectStage.DoesNotExist:
+            new_stage = Stage.objects.get(pk=stage_id)
+        except Stage.DoesNotExist:
             return Response(
-                {"detail": "Стадия не принадлежит данному объекту."},
+                {"detail": "Стадия не найдена в справочнике."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # фиксируем фактическую дату на предыдущей стадии
-        if obj.current_stage and obj.current_stage != new_stage:
-            obj.current_stage.actual_date = actual
-            obj.current_stage.save(update_fields=["actual_date"])
+        # фиксируем фактическую дату на текущей стадии
+        if obj.current_stage:
+            ObjectStage.objects.filter(
+                project_object=obj, stage=obj.current_stage,
+            ).update(actual_date=actual)
+
+        # создаём привязку новой стадии если её ещё нет
+        ObjectStage.objects.get_or_create(
+            project_object=obj, stage=new_stage,
+        )
 
         obj.current_stage = new_stage
         obj.save(update_fields=["current_stage", "updated_at"])
 
         return Response(ProjectObjectDetailSerializer(obj).data)
 
-    # --- управление стадиями: GET / POST /api/admin/objects/{id}/stages/ ---
+    # --- GET/POST /api/admin/objects/{id}/stages/ ---
     @action(detail=True, methods=["get", "post"], url_path="stages")
     def manage_stages(self, request, pk=None):
         obj = self.get_object()
 
         if request.method == "GET":
-            stages = obj.stages.all()
-            return Response(ObjectStageSerializer(stages, many=True).data)
+            qs = obj.object_stages.select_related("stage")
+            return Response(ObjectStageSerializer(qs, many=True).data)
 
         ser = ObjectStageSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         ser.save(project_object=obj)
         return Response(ser.data, status=status.HTTP_201_CREATED)
 
-    # --- загрузка документов: GET / POST /api/admin/objects/{id}/documents/ ---
+    # --- GET/POST /api/admin/objects/{id}/documents/ ---
     @action(
         detail=True,
         methods=["get", "post"],
@@ -120,15 +131,15 @@ class ProjectObjectViewSet(viewsets.ModelViewSet):
 
 
 class ObjectStageViewSet(viewsets.ModelViewSet):
-    """CRUD отдельных стадий (PUT/PATCH/DELETE)."""
+    """CRUD привязок стадий к объектам."""
 
     serializer_class = ObjectStageSerializer
     permission_classes = [IsAdminScope]
-    queryset = ObjectStage.objects.select_related("project_object")
+    queryset = ObjectStage.objects.select_related("stage", "project_object")
 
 
 class ObjectDocumentViewSet(viewsets.ModelViewSet):
-    """CRUD отдельных документов (PUT/PATCH/DELETE)."""
+    """CRUD документов объектов."""
 
     serializer_class = ObjectDocumentSerializer
     permission_classes = [IsAdminScope]

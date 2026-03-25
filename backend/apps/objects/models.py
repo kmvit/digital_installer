@@ -2,21 +2,28 @@ from django.conf import settings
 from django.db import models
 
 
-DEFAULT_STAGES = [
-    "Обследовать",
-    "Строить",
-    "Завершен",
-    "Завершен и оплачен",
-    "Гарантия",
-]
-
-
 class DocumentType(models.TextChoices):
     RD = "rd", "Рабочая документация (РД)"
     PROJECT = "project", "Проект"
     ACT = "act", "Акт"
     SCHEME = "scheme", "Схема"
     OTHER = "other", "Прочее"
+
+
+class Stage(models.Model):
+    """Справочник стадий — создаётся один раз, переиспользуется для всех объектов."""
+
+    name = models.CharField(max_length=128, unique=True, verbose_name="Название")
+    order = models.PositiveIntegerField(default=0, verbose_name="Порядок сортировки")
+
+    class Meta:
+        db_table = "objects_stage"
+        verbose_name = "Стадия"
+        verbose_name_plural = "Стадии"
+        ordering = ("order",)
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class ProjectObject(models.Model):
@@ -34,9 +41,8 @@ class ProjectObject(models.Model):
     )
     customer = models.CharField(max_length=255, blank=True, verbose_name="Заказчик")
 
-    # текущая стадия — FK на ObjectStage (выставляется при смене стадии)
     current_stage = models.ForeignKey(
-        "ObjectStage",
+        Stage,
         on_delete=models.SET_NULL,
         null=True, blank=True,
         related_name="+",
@@ -51,7 +57,6 @@ class ProjectObject(models.Model):
         verbose_name="База расценок",
     )
 
-    # доп. поля из ТЗ 4.1.3
     project_manager = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -68,7 +73,6 @@ class ProjectObject(models.Model):
     )
     deadline = models.DateField(null=True, blank=True, verbose_name="Дэдлайн")
 
-    # произвольные поля (ключ-значение)
     attrs = models.JSONField(default=dict, blank=True, verbose_name="Доп. атрибуты")
 
     is_archived = models.BooleanField(default=False, db_index=True, verbose_name="В архиве")
@@ -84,32 +88,22 @@ class ProjectObject(models.Model):
     def __str__(self) -> str:
         return self.name
 
-    def create_default_stages(self) -> list["ObjectStage"]:
-        """Создаёт стандартный набор стадий для нового объекта."""
-        stages = ObjectStage.objects.bulk_create([
-            ObjectStage(project_object=self, stage_name=name, order=idx)
-            for idx, name in enumerate(DEFAULT_STAGES)
-        ])
-        first = stages[0] if stages else None
-        if first:
-            self.current_stage = first
-            self.save(update_fields=["current_stage"])
-        return stages
-
 
 class ObjectStage(models.Model):
-    """
-    object_stages (id, object_id, stage_name, planned_date, actual_date)
-    """
+    """Привязка стадии к объекту с плановой и фактической датой."""
 
     project_object = models.ForeignKey(
         ProjectObject,
         on_delete=models.CASCADE,
-        related_name="stages",
+        related_name="object_stages",
         verbose_name="Объект",
     )
-    stage_name = models.CharField(max_length=128, verbose_name="Название стадии")
-    order = models.PositiveIntegerField(default=0, verbose_name="Порядок")
+    stage = models.ForeignKey(
+        Stage,
+        on_delete=models.CASCADE,
+        related_name="object_stages",
+        verbose_name="Стадия",
+    )
     planned_date = models.DateField(null=True, blank=True, verbose_name="Плановая дата")
     actual_date = models.DateField(null=True, blank=True, verbose_name="Фактическая дата")
 
@@ -117,11 +111,11 @@ class ObjectStage(models.Model):
         db_table = "objects_objectstage"
         verbose_name = "Стадия объекта"
         verbose_name_plural = "Стадии объектов"
-        ordering = ("order",)
-        unique_together = ("project_object", "order")
+        ordering = ("stage__order",)
+        unique_together = ("project_object", "stage")
 
     def __str__(self) -> str:
-        return f"{self.project_object} → {self.stage_name}"
+        return f"{self.project_object} → {self.stage.name}"
 
 
 class ObjectDocument(models.Model):

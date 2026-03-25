@@ -1,17 +1,29 @@
 from rest_framework import serializers
 
-from .models import ObjectDocument, ObjectStage, ProjectObject
+from .models import ObjectDocument, ObjectStage, ProjectObject, Stage
 
 
 # ---------------------------------------------------------------------------
-# Стадии
+# Справочник стадий
+# ---------------------------------------------------------------------------
+
+class StageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Stage
+        fields = ("id", "name", "order")
+
+
+# ---------------------------------------------------------------------------
+# Привязка стадии к объекту
 # ---------------------------------------------------------------------------
 
 class ObjectStageSerializer(serializers.ModelSerializer):
+    stage_name = serializers.CharField(source="stage.name", read_only=True)
+
     class Meta:
         model = ObjectStage
-        fields = ("id", "stage_name", "order", "planned_date", "actual_date")
-        read_only_fields = ("id",)
+        fields = ("id", "stage", "stage_name", "planned_date", "actual_date")
+        read_only_fields = ("id", "stage_name")
 
 
 # ---------------------------------------------------------------------------
@@ -30,12 +42,12 @@ class ObjectDocumentSerializer(serializers.ModelSerializer):
 
 
 # ---------------------------------------------------------------------------
-# Объект — список (компактный)
+# Объект — список
 # ---------------------------------------------------------------------------
 
 class ProjectObjectListSerializer(serializers.ModelSerializer):
     price_list_title = serializers.CharField(source="price_list.title", read_only=True, default=None)
-    current_stage_name = serializers.CharField(source="current_stage.stage_name", read_only=True, default=None)
+    current_stage_name = serializers.CharField(source="current_stage.name", read_only=True, default=None)
 
     class Meta:
         model = ProjectObject
@@ -49,15 +61,15 @@ class ProjectObjectListSerializer(serializers.ModelSerializer):
 
 
 # ---------------------------------------------------------------------------
-# Объект — детальный (с вложенными стадиями и документами)
+# Объект — детальный
 # ---------------------------------------------------------------------------
 
 class ProjectObjectDetailSerializer(serializers.ModelSerializer):
     price_list_title = serializers.CharField(source="price_list.title", read_only=True, default=None)
     project_manager_name = serializers.CharField(source="project_manager.get_full_name", read_only=True, default=None)
     brigade_name = serializers.CharField(source="brigade.name", read_only=True, default=None)
-    current_stage_name = serializers.CharField(source="current_stage.stage_name", read_only=True, default=None)
-    stages = ObjectStageSerializer(many=True, read_only=True)
+    current_stage_name = serializers.CharField(source="current_stage.name", read_only=True, default=None)
+    object_stages = ObjectStageSerializer(many=True, read_only=True)
     documents = ObjectDocumentSerializer(many=True, read_only=True)
 
     class Meta:
@@ -71,56 +83,41 @@ class ProjectObjectDetailSerializer(serializers.ModelSerializer):
             "project_manager", "project_manager_name",
             "brigade", "brigade_name",
             "deadline", "attrs", "is_archived",
-            "stages", "documents",
+            "object_stages", "documents",
             "created_at", "updated_at",
         )
         read_only_fields = (
             "id", "price_list_title", "project_manager_name",
             "brigade_name", "current_stage_name",
-            "stages", "documents",
+            "object_stages", "documents",
             "created_at", "updated_at",
         )
 
 
 # ---------------------------------------------------------------------------
-# Объект — запись (создание / обновление)
+# Объект — запись
 # ---------------------------------------------------------------------------
 
 class ProjectObjectWriteSerializer(serializers.ModelSerializer):
-    create_default_stages = serializers.BooleanField(write_only=True, required=False, default=True)
-
     class Meta:
         model = ProjectObject
         fields = (
             "id",
             "name", "address", "latitude", "longitude",
-            "customer",
-            "current_stage",
+            "customer", "current_stage",
             "price_list",
             "project_manager", "brigade",
             "deadline", "attrs", "is_archived",
-            "create_default_stages",
         )
         read_only_fields = ("id",)
 
-    def create(self, validated_data: dict) -> ProjectObject:
-        should_create_stages = validated_data.pop("create_default_stages", True)
-        obj = super().create(validated_data)
-        if should_create_stages:
-            obj.create_default_stages()
-        return obj
-
-    def update(self, instance: ProjectObject, validated_data: dict) -> ProjectObject:
-        validated_data.pop("create_default_stages", None)
-        return super().update(instance, validated_data)
-
 
 # ---------------------------------------------------------------------------
-# Смена стадии объекта
+# Смена стадии
 # ---------------------------------------------------------------------------
 
 class ChangeStageSerializer(serializers.Serializer):
-    stage_id = serializers.IntegerField(help_text="ID стадии из stages объекта")
+    stage_id = serializers.IntegerField(help_text="ID стадии из справочника Stage")
     actual_date = serializers.DateField(
         required=False, allow_null=True,
         help_text="Фактическая дата завершения предыдущей стадии (по умолчанию — сегодня)",

@@ -1,6 +1,12 @@
 from django.contrib import admin
 
-from .models import ObjectDocument, ObjectStage, ProjectObject
+from .models import ObjectDocument, ObjectStage, ProjectObject, Stage
+
+
+@admin.register(Stage)
+class StageAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "order")
+    ordering = ("order",)
 
 
 class ObjectStageInline(admin.TabularInline):
@@ -17,15 +23,15 @@ class ObjectDocumentInline(admin.TabularInline):
 @admin.register(ProjectObject)
 class ProjectObjectAdmin(admin.ModelAdmin):
     list_display = ("id", "name", "customer", "current_stage", "price_list", "deadline", "is_archived", "updated_at")
-    list_filter = ("is_archived", "price_list")
+    list_filter = ("is_archived", "price_list", "current_stage")
     search_fields = ("name", "address", "customer")
     inlines = [ObjectStageInline, ObjectDocumentInline]
 
 
 @admin.register(ObjectStage)
 class ObjectStageAdmin(admin.ModelAdmin):
-    list_display = ("id", "project_object", "stage_name", "order", "planned_date", "actual_date")
-    list_filter = ("project_object",)
+    list_display = ("id", "project_object", "stage", "planned_date", "actual_date")
+    list_filter = ("stage",)
 
 
 @admin.register(ObjectDocument)
