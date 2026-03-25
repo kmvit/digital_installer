@@ -23,7 +23,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from apps.core.xlsx_utils import XlsxReader, clean_text, parse_date_flexible
 from apps.objects.models import ProjectObject, Stage
-from apps.users.models import User
+from apps.users.models import RoleCode, User
 
 # Индексы колонок (0-based после вычитания, т.к. XlsxReader отдаёт list[str] с 0-index)
 COL_CITY = 2         # C
@@ -42,25 +42,69 @@ def build_name(city: str, address: str, description: str) -> str:
     return name[:255] if name else ""
 
 
+def _register_user(mapping: dict[str, User], user: User) -> None:
+    """Добавляет все варианты написания имени пользователя в карту."""
+    mapping[user.username.lower()] = user
+    if user.last_name:
+        mapping[user.last_name.lower()] = user
+    if user.first_name and user.last_name:
+        short = f"{user.first_name} {user.last_name[0]}.".lower()
+        mapping[short] = user
+        full = f"{user.first_name} {user.last_name}".lower()
+        mapping[full] = user
+        full_rev = f"{user.last_name} {user.first_name}".lower()
+        mapping[full_rev] = user
+    if user.first_name and not user.last_name:
+        mapping[user.first_name.lower()] = user
+
+
 def _build_user_map() -> dict[str, User]:
-    """
-    Строит карту «текст из Excel → User» для сопоставления ответственных.
-    Ключи: lowercase варианты — username, фамилия, «Имя Ф.», полное имя.
-    """
     mapping: dict[str, User] = {}
     for u in User.objects.filter(is_active=True):
-        mapping[u.username.lower()] = u
-        if u.last_name:
-            mapping[u.last_name.lower()] = u
-        if u.first_name and u.last_name:
-            # «Михаил Г.» — частый формат в Excel
-            short = f"{u.first_name} {u.last_name[0]}.".lower()
-            mapping[short] = u
-            full = f"{u.first_name} {u.last_name}".lower()
-            mapping[full] = u
-            full_rev = f"{u.last_name} {u.first_name}".lower()
-            mapping[full_rev] = u
+        _register_user(mapping, u)
     return mapping
+
+
+def _get_or_create_pm(raw_name: str, user_map: dict[str, User]) -> User | None:
+    """Ищет пользователя по имени из Excel; если нет — создаёт с ролью project_manager."""
+    if not raw_name:
+        return None
+
+    key = raw_name.lower().strip()
+    if key in user_map:
+        return user_map[key]
+
+    # парсим «Имя Ф.» или «Фамилия» или просто имя
+    parts = raw_name.strip().split()
+    first_name = parts[0] if parts else raw_name.strip()
+    last_name = parts[1].rstrip(".") if len(parts) > 1 else ""
+
+    # username: транслит-подобная очистка — берём латиницу или оставляем как есть
+    base = raw_name.strip().lower().replace(" ", "_").replace(".", "")
+    # убираем недопустимые символы для username
+    username = "".join(c for c in base if c.isalnum() or c == "_")
+    if not username:
+        username = f"pm_{id(raw_name)}"
+
+    # если username уже занят — добавляем суффикс
+    original = username
+    counter = 1
+    while User.objects.filter(username=username).exists():
+        username = f"{original}_{counter}"
+        counter += 1
+
+    user = User.objects.create_user(
+        username=username,
+        first_name=first_name,
+        last_name=last_name,
+        role=RoleCode.PROJECT_MANAGER,
+        password=None,  # unusable password
+    )
+    user.set_unusable_password()
+    user.save(update_fields=["password"])
+
+    _register_user(user_map, user)
+    return user
 
 
 def import_objects_from_reader(reader: XlsxReader, sheet: str | None = None) -> dict:
@@ -99,7 +143,7 @@ def import_objects_from_reader(reader: XlsxReader, sheet: str | None = None) -> 
             deadline = dt.date()
 
         current_stage = stage_map.get(stage_raw.lower().strip()) if stage_raw else None
-        project_manager = user_map.get(pm_raw.lower().strip()) if pm_raw else None
+        project_manager = _get_or_create_pm(pm_raw, user_map)
 
         with transaction.atomic():
             obj, was_created = ProjectObject.objects.get_or_create(
