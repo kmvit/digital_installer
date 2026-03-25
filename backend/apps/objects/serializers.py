@@ -82,7 +82,7 @@ class ProjectObjectDetailSerializer(serializers.ModelSerializer):
             "price_list", "price_list_title",
             "project_manager", "project_manager_name",
             "brigade", "brigade_name",
-            "deadline", "attrs", "is_archived",
+            "deadline", "notes", "attrs", "is_archived",
             "object_stages", "documents",
             "created_at", "updated_at",
         )
@@ -107,7 +107,7 @@ class ProjectObjectWriteSerializer(serializers.ModelSerializer):
             "customer", "current_stage",
             "price_list",
             "project_manager", "brigade",
-            "deadline", "attrs", "is_archived",
+            "deadline", "notes", "attrs", "is_archived",
         )
         read_only_fields = ("id",)
 

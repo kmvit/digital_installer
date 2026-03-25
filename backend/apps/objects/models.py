@@ -73,6 +73,7 @@ class ProjectObject(models.Model):
     )
     deadline = models.DateField(null=True, blank=True, verbose_name="Дэдлайн")
 
+    notes = models.TextField(blank=True, verbose_name="Примечания")
     attrs = models.JSONField(default=dict, blank=True, verbose_name="Доп. атрибуты")
 
     is_archived = models.BooleanField(default=False, db_index=True, verbose_name="В архиве")

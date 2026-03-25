@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 
 from django.db import models as dj_models
@@ -7,6 +8,7 @@ from rest_framework.response import Response
 
 from apps.users.permissions import IsAdminScope
 
+from .management.commands.import_objects import import_objects_from_file
 from .models import ObjectDocument, ObjectStage, ProjectObject, Stage
 from .serializers import (
     ChangeStageSerializer,
@@ -17,6 +19,8 @@ from .serializers import (
     ProjectObjectWriteSerializer,
     StageSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class StageViewSet(viewsets.ModelViewSet):
@@ -128,6 +132,43 @@ class ProjectObjectViewSet(viewsets.ModelViewSet):
         ser.is_valid(raise_exception=True)
         ser.save(project_object=obj, uploaded_by=request.user)
         return Response(ser.data, status=status.HTTP_201_CREATED)
+
+
+    # --- POST /api/admin/objects/import/ ---
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="import",
+        parser_classes=[parsers.MultiPartParser, parsers.FormParser],
+    )
+    def import_xlsx(self, request):
+        file = request.FILES.get("file")
+        if not file:
+            return Response(
+                {"detail": "Файл не передан. Ожидается поле 'file' с xlsx."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not file.name.lower().endswith(".xlsx"):
+            return Response(
+                {"detail": "Поддерживаются только файлы .xlsx"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        sheet = request.data.get("sheet") or None
+        try:
+            result = import_objects_from_file(file, sheet=sheet)
+        except Exception as exc:
+            logger.exception("Ошибка импорта объектов")
+            return Response(
+                {"detail": f"Ошибка импорта: {exc}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response({
+            "created": result["created"],
+            "skipped": result["skipped"],
+            "errors": result["errors"],
+        })
 
 
 class ObjectStageViewSet(viewsets.ModelViewSet):
