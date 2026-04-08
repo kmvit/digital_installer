@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
 });
 
 // JWT interceptor
@@ -23,7 +23,7 @@ api.interceptors.response.use(
       const refresh = localStorage.getItem('refresh_token');
       if (refresh) {
         try {
-          const { data } = await axios.post('http://127.0.0.1:8000/api/auth/token/refresh/', {
+          const { data } = await axios.post((import.meta.env.VITE_API_URL || '/api') + '/auth/token/refresh/', {
             refresh,
           });
           localStorage.setItem('access_token', data.access);
