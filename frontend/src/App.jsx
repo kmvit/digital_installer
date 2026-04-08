@@ -1,46 +1,43 @@
-import { useState } from "react";
-import axios from "axios";
-
-const api = axios.create({
-  baseURL: "http://127.0.0.1:8000/api"
-});
+import { Routes, Route } from "react-router-dom";
+import Layout from "./components/Layout";
+import ProtectedRoute from "./components/ProtectedRoute";
+import LoginPage from "./pages/LoginPage";
+import DashboardPage from "./pages/DashboardPage";
+import ClockInPage from "./pages/ClockInPage";
+import ClockOutPage from "./pages/ClockOutPage";
+import EquipmentPage from "./pages/EquipmentPage";
+import ObjectSelectPage from "./pages/ObjectSelectPage";
+import ObjectWorkPage from "./pages/ObjectWorkPage";
+import AddWorkPage from "./pages/AddWorkPage";
+import DepartPage from "./pages/DepartPage";
+import SummaryPage from "./pages/SummaryPage";
+import ApprovalPage from "./pages/ApprovalPage";
+import HistoryPage from "./pages/HistoryPage";
 
 export default function App() {
-  const [token, setToken] = useState("");
-  const [me, setMe] = useState(null);
-  const [error, setError] = useState("");
-
-  const fetchMe = async () => {
-    setError("");
-    try {
-      const response = await api.get("/auth/me/", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setMe(response.data);
-    } catch (err) {
-      setError("Не удалось получить пользователя. Проверьте токен.");
-      setMe(null);
-    }
-  };
-
   return (
-    <main className="container">
-      <h1>Digital Installer</h1>
-      <p>Этап 1: инфраструктура, JWT, RBAC.</p>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
 
-      <label htmlFor="token">JWT access token</label>
-      <textarea
-        id="token"
-        value={token}
-        onChange={(e) => setToken(e.target.value)}
-        placeholder="Вставьте access токен"
-      />
-      <button onClick={fetchMe} type="button">
-        Запросить /api/auth/me/
-      </button>
-
-      {error && <p className="error">{error}</p>}
-      {me && <pre>{JSON.stringify(me, null, 2)}</pre>}
-    </main>
+      <Route
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/clock-in" element={<ClockInPage />} />
+        <Route path="/clock-out" element={<ClockOutPage />} />
+        <Route path="/equipment" element={<EquipmentPage />} />
+        <Route path="/objects" element={<ObjectSelectPage />} />
+        <Route path="/object/:sessionId" element={<ObjectWorkPage />} />
+        <Route path="/add-work/:sessionId" element={<AddWorkPage />} />
+        <Route path="/depart/:sessionId" element={<DepartPage />} />
+        <Route path="/summary/:workdayId" element={<SummaryPage />} />
+        <Route path="/approval" element={<ApprovalPage />} />
+        <Route path="/history" element={<HistoryPage />} />
+      </Route>
+    </Routes>
   );
 }

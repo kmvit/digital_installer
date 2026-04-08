@@ -39,6 +39,14 @@ class ProjectObject(models.Model):
     longitude = models.DecimalField(
         max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Долгота",
     )
+    geofence_polygon = models.JSONField(
+        default=list, blank=True, verbose_name="Геозона (полигон)",
+        help_text="Массив координат [[lat, lng], ...] для определения границ объекта",
+    )
+    presence_radius = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="Радиус присутствия (м)",
+        help_text="Радиус в метрах для определения присутствия бригады на объекте",
+    )
     customer = models.CharField(max_length=255, blank=True, verbose_name="Заказчик")
 
     current_stage = models.ForeignKey(

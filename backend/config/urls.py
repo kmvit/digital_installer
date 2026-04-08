@@ -13,6 +13,7 @@ urlpatterns = [
     path("api/auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("api/auth/", include("apps.users.urls")),
     path("api/admin/", include("apps.users.admin_urls")),
+    path("api/workday/", include("apps.workday.urls")),
 ]
 
 if settings.DEBUG:

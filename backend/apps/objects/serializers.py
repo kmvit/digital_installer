@@ -77,6 +77,7 @@ class ProjectObjectDetailSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "name", "address", "latitude", "longitude",
+            "geofence_polygon", "presence_radius",
             "customer",
             "current_stage", "current_stage_name",
             "price_list", "price_list_title",
@@ -104,12 +105,27 @@ class ProjectObjectWriteSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "name", "address", "latitude", "longitude",
+            "geofence_polygon", "presence_radius",
             "customer", "current_stage",
             "price_list",
             "project_manager", "brigade",
             "deadline", "notes", "attrs", "is_archived",
         )
         read_only_fields = ("id",)
+
+    def validate_geofence_polygon(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Должен быть массивом координат [[lat, lng], ...]")
+        for i, point in enumerate(value):
+            if not isinstance(point, (list, tuple)) or len(point) != 2:
+                raise serializers.ValidationError(f"Точка {i}: должна быть парой [lat, lng]")
+            try:
+                lat, lng = float(point[0]), float(point[1])
+            except (TypeError, ValueError):
+                raise serializers.ValidationError(f"Точка {i}: координаты должны быть числами")
+            if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+                raise serializers.ValidationError(f"Точка {i}: координаты вне допустимого диапазона")
+        return value
 
 
 # ---------------------------------------------------------------------------

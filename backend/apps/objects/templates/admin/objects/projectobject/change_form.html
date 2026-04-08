@@ -1,0 +1,270 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+<style>
+  #map-container {
+    margin: 20px 0;
+    padding: 15px;
+    background: #f8f9fa;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  #map-container h3 {
+    margin: 0 0 10px;
+    color: #333;
+    font-size: 14px;
+  }
+  #map {
+    height: 500px;
+    width: 100%;
+    border: 1px solid #999;
+    border-radius: 4px;
+  }
+  #map-hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #666;
+  }
+  #map-hint span {
+    display: inline-block;
+    margin-right: 20px;
+  }
+  #polygon-info {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: #e8f5e9;
+    border-radius: 4px;
+    font-size: 13px;
+    display: none;
+  }
+  #polygon-info.active {
+    display: block;
+  }
+</style>
+{% endblock %}
+
+{% block after_field_sets %}
+{{ block.super }}
+
+<div id="map-container">
+  <h3>Карта объекта</h3>
+  <div id="map"></div>
+  <div id="map-hint">
+    <span>&#128205; Клик по карте — установить точку объекта (координаты)</span>
+    <span>&#9998; Используйте панель слева для рисования полигона геозоны</span>
+  </div>
+  <div id="polygon-info"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  // --- Получаем ссылки на поля формы ---
+  var latField = document.getElementById('id_latitude');
+  var lngField = document.getElementById('id_longitude');
+  var polygonField = document.getElementById('id_geofence_polygon');
+
+  // --- Начальные значения ---
+  var initLat = latField && latField.value ? parseFloat(latField.value) : null;
+  var initLng = lngField && lngField.value ? parseFloat(lngField.value) : null;
+  var initPolygon = [];
+
+  if (polygonField && polygonField.value) {
+    try {
+      initPolygon = JSON.parse(polygonField.value);
+      if (!Array.isArray(initPolygon)) initPolygon = [];
+    } catch(e) {
+      initPolygon = [];
+    }
+  }
+
+  // --- Центр карты ---
+  var centerLat = initLat || 55.7558;
+  var centerLng = initLng || 37.6173;
+  var initZoom = (initLat && initLng) ? 15 : 10;
+
+  // --- Инициализация карты ---
+  var map = L.map('map', { attributionControl: false }).setView([centerLat, centerLng], initZoom);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19,
+  }).addTo(map);
+
+  // --- Маркер ---
+  var marker = null;
+
+  function setMarker(lat, lng) {
+    if (marker) {
+      marker.setLatLng([lat, lng]);
+    } else {
+      marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+      marker.on('dragend', function(e) {
+        var pos = e.target.getLatLng();
+        updateCoordFields(pos.lat, pos.lng);
+      });
+    }
+  }
+
+  function updateCoordFields(lat, lng) {
+    if (latField) latField.value = lat.toFixed(6);
+    if (lngField) lngField.value = lng.toFixed(6);
+  }
+
+  // Если есть начальные координаты — показать маркер
+  if (initLat && initLng) {
+    setMarker(initLat, initLng);
+  }
+
+  // --- Клик по карте → установить маркер ---
+  map.on('click', function(e) {
+    var lat = e.latlng.lat;
+    var lng = e.latlng.lng;
+    setMarker(lat, lng);
+    updateCoordFields(lat, lng);
+  });
+
+  // --- Синхронизация: ввод координат вручную → переместить маркер ---
+  function syncMarkerFromFields() {
+    var lat = parseFloat(latField.value);
+    var lng = parseFloat(lngField.value);
+    if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      setMarker(lat, lng);
+      map.setView([lat, lng], Math.max(map.getZoom(), 15));
+    }
+  }
+
+  if (latField) latField.addEventListener('change', syncMarkerFromFields);
+  if (lngField) lngField.addEventListener('change', syncMarkerFromFields);
+
+  // --- Полигон (Leaflet Draw) ---
+  var drawnItems = new L.FeatureGroup();
+  map.addLayer(drawnItems);
+
+  var drawControl = new L.Control.Draw({
+    position: 'topleft',
+    draw: {
+      polygon: {
+        allowIntersection: false,
+        showArea: true,
+        shapeOptions: {
+          color: '#3388ff',
+          weight: 2,
+          fillOpacity: 0.15,
+        },
+        metric: true,
+      },
+      polyline: false,
+      rectangle: false,
+      circle: false,
+      circlemarker: false,
+      marker: false,
+    },
+    edit: {
+      featureGroup: drawnItems,
+      remove: true,
+    },
+  });
+  map.addControl(drawControl);
+
+  // Русские подписки для Leaflet Draw
+  L.drawLocal.draw.toolbar.buttons.polygon = 'Нарисовать полигон геозоны';
+  L.drawLocal.draw.toolbar.actions.title = 'Отменить рисование';
+  L.drawLocal.draw.toolbar.actions.text = 'Отмена';
+  L.drawLocal.draw.toolbar.finish.title = 'Завершить рисование';
+  L.drawLocal.draw.toolbar.finish.text = 'Завершить';
+  L.drawLocal.draw.toolbar.undo.title = 'Удалить последнюю точку';
+  L.drawLocal.draw.toolbar.undo.text = 'Удалить посл. точку';
+  L.drawLocal.draw.handlers.polygon.tooltip.start = 'Нажмите, чтобы начать рисовать полигон';
+  L.drawLocal.draw.handlers.polygon.tooltip.cont = 'Нажмите, чтобы продолжить рисование';
+  L.drawLocal.draw.handlers.polygon.tooltip.end = 'Нажмите на первую точку, чтобы замкнуть полигон';
+  L.drawLocal.edit.toolbar.buttons.edit = 'Редактировать полигон';
+  L.drawLocal.edit.toolbar.buttons.editDisabled = 'Нет полигона для редактирования';
+  L.drawLocal.edit.toolbar.buttons.remove = 'Удалить полигон';
+  L.drawLocal.edit.toolbar.buttons.removeDisabled = 'Нет полигона для удаления';
+  L.drawLocal.edit.toolbar.actions.save.title = 'Сохранить изменения';
+  L.drawLocal.edit.toolbar.actions.save.text = 'Сохранить';
+  L.drawLocal.edit.toolbar.actions.cancel.title = 'Отменить редактирование';
+  L.drawLocal.edit.toolbar.actions.cancel.text = 'Отмена';
+  L.drawLocal.edit.toolbar.actions.clearAll.title = 'Удалить все полигоны';
+  L.drawLocal.edit.toolbar.actions.clearAll.text = 'Удалить все';
+
+  function updatePolygonField() {
+    var coords = [];
+    drawnItems.eachLayer(function(layer) {
+      if (layer instanceof L.Polygon) {
+        var latlngs = layer.getLatLngs()[0];
+        coords = latlngs.map(function(ll) { return [ll.lat, ll.lng]; });
+      }
+    });
+    if (polygonField) {
+      polygonField.value = JSON.stringify(coords);
+    }
+    updatePolygonInfo(coords);
+  }
+
+  function updatePolygonInfo(coords) {
+    var infoEl = document.getElementById('polygon-info');
+    if (coords.length > 0) {
+      infoEl.className = 'active';
+      infoEl.innerHTML = 'Геозона задана: ' + coords.length + ' точек';
+    } else {
+      infoEl.className = '';
+      infoEl.innerHTML = '';
+    }
+  }
+
+  // Загрузить сохранённый полигон
+  if (initPolygon.length > 2) {
+    var latlngs = initPolygon.map(function(p) { return L.latLng(p[0], p[1]); });
+    var polygon = L.polygon(latlngs, {
+      color: '#3388ff',
+      weight: 2,
+      fillOpacity: 0.15,
+    });
+    drawnItems.addLayer(polygon);
+    updatePolygonInfo(initPolygon);
+
+    // Подогнать вид карты под полигон, если нет координат маркера
+    if (!initLat || !initLng) {
+      map.fitBounds(polygon.getBounds(), { padding: [50, 50] });
+    }
+  }
+
+  // Нарисован новый полигон
+  map.on(L.Draw.Event.CREATED, function(e) {
+    // Убираем старый полигон — один полигон за раз
+    drawnItems.eachLayer(function(layer) {
+      if (layer instanceof L.Polygon) {
+        drawnItems.removeLayer(layer);
+      }
+    });
+    drawnItems.addLayer(e.layer);
+    updatePolygonField();
+  });
+
+  // Полигон отредактирован
+  map.on(L.Draw.Event.EDITED, function() {
+    updatePolygonField();
+  });
+
+  // Полигон удалён
+  map.on(L.Draw.Event.DELETED, function() {
+    updatePolygonField();
+  });
+
+  // Таймаут для корректного отображения карты (Django Admin рендерит в табах)
+  setTimeout(function() {
+    map.invalidateSize();
+  }, 200);
+
+})();
+</script>
+{% endblock %}

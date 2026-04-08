@@ -32,13 +32,35 @@ class ObjectDocumentInline(admin.TabularInline):
     readonly_fields = ("uploaded_by", "created_at")
 
 
+class ProjectObjectForm(forms.ModelForm):
+    class Meta:
+        model = ProjectObject
+        fields = "__all__"
+        widgets = {
+            "geofence_polygon": forms.Textarea(attrs={
+                "rows": 3,
+                "style": "width:100%; font-family:monospace; font-size:12px;",
+            }),
+        }
+
+
 @admin.register(ProjectObject)
 class ProjectObjectAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "customer", "current_stage", "price_list", "deadline", "is_archived", "updated_at")
+    form = ProjectObjectForm
+    list_display = ("id", "name", "customer", "current_stage", "price_list", "deadline", "geofence_status", "is_archived", "updated_at")
     list_filter = ("is_archived", "price_list", "current_stage")
     search_fields = ("name", "address", "customer")
     inlines = [ObjectStageInline, ObjectDocumentInline]
     change_list_template = "admin/objects/projectobject/change_list.html"
+    change_form_template = "admin/objects/projectobject/change_form.html"
+
+    @admin.display(description="Геозона")
+    def geofence_status(self, obj):
+        if obj.geofence_polygon and len(obj.geofence_polygon) > 0:
+            return f"Полигон ({len(obj.geofence_polygon)} точек)"
+        if obj.presence_radius:
+            return f"Радиус {obj.presence_radius} м"
+        return "-"
 
     def get_urls(self):
         urls = super().get_urls()
