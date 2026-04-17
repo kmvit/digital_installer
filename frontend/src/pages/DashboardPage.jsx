@@ -2,11 +2,15 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Button, Card, CardContent, Typography, Chip, Alert,
-  CircularProgress, List, ListItem, ListItemText, Divider,
+  CircularProgress, List, ListItem, ListItemText, ListItemIcon,
+  ListItemButton, Divider, Avatar, Paper,
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import AddLocationIcon from '@mui/icons-material/AddLocation';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import ChecklistIcon from '@mui/icons-material/Checklist';
 import { workdayApi } from '../api';
 
 export default function DashboardPage() {
@@ -25,22 +29,26 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <Box sx={{ textAlign: 'center', mt: 4 }}><CircularProgress /></Box>;
+  if (loading) return <Box sx={{ textAlign: 'center', mt: 8 }}><CircularProgress /></Box>;
 
   // Нет открытой смены
   if (!workday) {
     return (
-      <Box sx={{ textAlign: 'center', mt: 6 }}>
-        <Typography variant="h6" gutterBottom>Смена не начата</Typography>
-        <Typography color="text.secondary" sx={{ mb: 4 }}>
-          Начните рабочий день, чтобы фиксировать работы
-        </Typography>
+      <Box sx={{ textAlign: 'center', mt: 4 }}>
+        <Paper elevation={0} sx={{ py: 6, px: 3, bgcolor: 'grey.50', mb: 3 }}>
+          <AccessTimeIcon sx={{ fontSize: 64, color: 'grey.400', mb: 2 }} />
+          <Typography variant="h6" gutterBottom>Смена не начата</Typography>
+          <Typography color="text.secondary">
+            Начните рабочий день, чтобы фиксировать работы
+          </Typography>
+        </Paper>
         <Button
           variant="contained"
           size="large"
           startIcon={<PlayArrowIcon />}
           onClick={() => navigate('/clock-in')}
-          sx={{ px: 6, py: 2 }}
+          fullWidth
+          sx={{ py: 1.5 }}
         >
           Начать смену
         </Button>
@@ -58,80 +66,71 @@ export default function DashboardPage() {
     <Box>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      <Card sx={{ mb: 2, bgcolor: 'primary.main', color: 'white' }}>
-        <CardContent>
-          <Typography variant="body2">Смена открыта</Typography>
-          <Typography variant="h4">{hours}ч {mins}м</Typography>
-          <Typography variant="body2">
+      {/* Таймер */}
+      <Card elevation={2} sx={{ mb: 3, bgcolor: 'primary.main', color: 'white' }}>
+        <CardContent sx={{ textAlign: 'center', py: 3 }}>
+          <Typography variant="overline">Смена активна</Typography>
+          <Typography variant="h3" sx={{ fontWeight: 700, my: 1 }}>
+            {hours}:{String(mins).padStart(2, '0')}
+          </Typography>
+          <Typography variant="body2" sx={{ opacity: 0.8 }}>
             Начало: {clockIn.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
           </Typography>
           <Chip
             label={workday.brigade_name}
             size="small"
-            sx={{ mt: 1, bgcolor: 'rgba(255,255,255,0.2)', color: 'white' }}
+            sx={{ mt: 1.5, bgcolor: 'rgba(255,255,255,0.2)', color: 'white' }}
           />
         </CardContent>
       </Card>
 
-      {/* Открытые сессии */}
+      {/* Объекты */}
       {workday.sessions?.length > 0 && (
-        <Card sx={{ mb: 2 }}>
-          <CardContent>
+        <Card elevation={1} sx={{ mb: 3 }}>
+          <CardContent sx={{ pb: 0 }}>
             <Typography variant="subtitle1" gutterBottom>Объекты за день</Typography>
-            <List disablePadding>
-              {workday.sessions.map((s) => (
-                <Box key={s.id}>
-                  <ListItem
-                    disablePadding
-                    onClick={() => !s.departed_at && navigate(`/object/${s.id}`)}
-                    sx={{ cursor: s.departed_at ? 'default' : 'pointer', py: 1 }}
-                  >
-                    <ListItemText
-                      primary={s.object_name}
-                      secondary={
-                        s.departed_at
-                          ? `Завершено в ${new Date(s.departed_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
-                          : 'На объекте...'
-                      }
-                    />
-                    {!s.departed_at && (
-                      <Chip label="Активно" color="success" size="small" />
-                    )}
-                  </ListItem>
-                  <Divider />
-                </Box>
-              ))}
-            </List>
           </CardContent>
+          <List disablePadding>
+            {workday.sessions.map((s, idx) => (
+              <Box key={s.id}>
+                {idx > 0 && <Divider />}
+                <ListItemButton
+                  disabled={!!s.departed_at}
+                  onClick={() => !s.departed_at && navigate(`/object/${s.id}`)}
+                >
+                  <ListItemIcon>
+                    <Avatar sx={{
+                      width: 36, height: 36,
+                      bgcolor: s.departed_at ? 'grey.200' : 'success.light',
+                    }}>
+                      <LocationOnIcon sx={{ fontSize: 20, color: s.departed_at ? 'grey.500' : 'white' }} />
+                    </Avatar>
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={s.object_name}
+                    secondary={
+                      s.departed_at
+                        ? `Завершено в ${new Date(s.departed_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
+                        : 'На объекте...'
+                    }
+                  />
+                  {!s.departed_at && <Chip label="Активно" color="success" size="small" />}
+                </ListItemButton>
+              </Box>
+            ))}
+          </List>
         </Card>
       )}
 
       {/* Действия */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Button
-          variant="contained"
-          startIcon={<AddLocationIcon />}
-          onClick={() => navigate('/objects')}
-          fullWidth
-        >
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Button variant="contained" startIcon={<AddLocationIcon />} onClick={() => navigate('/objects')} fullWidth>
           Прибыть на объект
         </Button>
-
-        <Button
-          variant="outlined"
-          onClick={() => navigate('/equipment')}
-          fullWidth
-        >
+        <Button variant="outlined" startIcon={<ChecklistIcon />} onClick={() => navigate('/equipment')} fullWidth>
           Чек-лист оборудования
         </Button>
-
-        <Button
-          variant="contained"
-          color="error"
-          startIcon={<StopIcon />}
-          onClick={() => navigate('/clock-out')}
-          fullWidth
-        >
+        <Button variant="outlined" color="error" startIcon={<StopIcon />} onClick={() => navigate('/clock-out')} fullWidth>
           Завершить смену
         </Button>
       </Box>

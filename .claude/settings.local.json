@@ -10,7 +10,8 @@
       "Bash(../.venv/bin/python -c \":*)",
       "Bash(npm install:*)",
       "Bash(export PATH=\"$HOME/.nvm/versions/node/v24.12.0/bin:$PATH\")",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(pandoc \"Проект ТЗ PWA Монтажники.docx\" -o temp_output.md)"
     ]
   }
 }

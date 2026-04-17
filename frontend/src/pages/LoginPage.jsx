@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Box, TextField, Button, Typography, Alert, Paper,
+  Box, TextField, Button, Typography, Alert, Paper, Avatar,
 } from '@mui/material';
+import EngineeringIcon from '@mui/icons-material/Engineering';
 import { authApi } from '../api';
 
 export default function LoginPage() {
@@ -29,14 +30,24 @@ export default function LoginPage() {
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default', p: 2 }}>
-      <Paper sx={{ p: 4, maxWidth: 400, width: '100%' }}>
-        <Typography variant="h5" align="center" gutterBottom>
-          Цифровой монтажник
-        </Typography>
-        <Typography variant="body2" align="center" color="text.secondary" sx={{ mb: 3 }}>
-          Войдите в систему
-        </Typography>
+    <Box sx={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      bgcolor: 'grey.100',
+      p: 2,
+    }}>
+      <Paper elevation={3} sx={{ p: 4, maxWidth: 400, width: '100%' }}>
+        <Box sx={{ textAlign: 'center', mb: 3 }}>
+          <Avatar sx={{ width: 64, height: 64, mx: 'auto', mb: 2, bgcolor: 'primary.main' }}>
+            <EngineeringIcon sx={{ fontSize: 36 }} />
+          </Avatar>
+          <Typography variant="h5">СВ ФИНАМ</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Цифровой монтажник
+          </Typography>
+        </Box>
 
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 

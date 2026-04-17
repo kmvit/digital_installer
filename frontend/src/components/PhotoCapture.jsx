@@ -21,59 +21,26 @@ export default function PhotoCapture({ onPhoto, label = 'Сделать фото
   };
 
   return (
-    <Box sx={{ my: 2 }}>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={handleCapture}
-        style={{ display: 'none' }}
-        id="photo-capture"
-      />
+    <Box>
+      <input ref={inputRef} type="file" accept="image/*" capture="environment" onChange={handleCapture} style={{ display: 'none' }} id="photo-capture" />
 
       {!preview ? (
         <label htmlFor="photo-capture">
-          <Button
-            variant="outlined"
-            component="span"
-            startIcon={<CameraAltIcon />}
-            fullWidth
-            color={required ? 'primary' : 'inherit'}
-            sx={{ py: 2 }}
-          >
+          <Button variant="outlined" component="span" startIcon={<CameraAltIcon sx={{ fontSize: 32 }} />} fullWidth sx={{ py: 3, borderStyle: 'dashed', fontSize: '1.15rem' }}>
             {label} {required && '*'}
           </Button>
         </label>
       ) : (
         <Box>
-          <Box
-            component="img"
-            src={preview}
-            alt="Фото"
-            sx={{
-              width: '100%',
-              maxHeight: 300,
-              objectFit: 'cover',
-              borderRadius: 2,
-              mb: 1,
-            }}
-          />
-          <Button
-            size="small"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={handleRemove}
-          >
-            Удалить фото
+          <Box component="img" src={preview} alt="Фото" sx={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 2, mb: 1 }} />
+          <Button size="small" color="error" startIcon={<DeleteIcon />} onClick={handleRemove}>
+            Удалить
           </Button>
         </Box>
       )}
 
       {required && !preview && (
-        <Typography variant="caption" color="error">
-          Фото обязательно
-        </Typography>
+        <Typography variant="caption" color="error">Фото обязательно</Typography>
       )}
     </Box>
   );

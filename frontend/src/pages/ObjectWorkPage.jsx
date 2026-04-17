@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box, Button, Typography, Alert, Card, CardContent, Fab,
-  CircularProgress, List, ListItem, ListItemText, Divider, Chip,
+  CircularProgress, Chip, Avatar,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
+import BuildIcon from '@mui/icons-material/Build';
+import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import { worksApi } from '../api';
 
 export default function ObjectWorkPage() {
@@ -15,75 +17,65 @@ export default function ObjectWorkPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const loadWorks = () => {
+  useEffect(() => {
     worksApi.bySession(sessionId)
       .then((r) => setWorks(r.data))
       .catch(() => setError('Ошибка загрузки'))
       .finally(() => setLoading(false));
-  };
+  }, [sessionId]);
 
-  useEffect(loadWorks, [sessionId]);
+  if (loading) return <Box sx={{ textAlign: 'center', mt: 8 }}><CircularProgress /></Box>;
 
-  if (loading) return <Box sx={{ textAlign: 'center', mt: 4 }}><CircularProgress /></Box>;
-
-  const totalCost = works.reduce(
-    (sum, w) => sum + parseFloat(w.total || 0), 0
-  );
+  const totalCost = works.reduce((sum, w) => sum + parseFloat(w.total || 0), 0);
 
   return (
-    <Box>
+    <Box sx={{ pb: 10 }}>
       <Typography variant="h5" gutterBottom>Работы на объекте</Typography>
-
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       {works.length > 0 ? (
-        <Card sx={{ mb: 2 }}>
-          <CardContent>
-            <List disablePadding>
-              {works.map((w) => (
-                <Box key={w.id}>
-                  <ListItem disablePadding sx={{ py: 1 }}>
-                    <ListItemText
-                      primary={w.work_name}
-                      secondary={`${w.volume} ${w.unit || ''} = ${parseFloat(w.total || 0).toLocaleString('ru-RU')} руб.`}
-                    />
-                    {w.has_photos ? (
-                      <Chip label="Фото" size="small" color="success" />
-                    ) : (
-                      <Chip label="Нет фото" size="small" color="warning" />
-                    )}
-                  </ListItem>
-                  <Divider />
+        <>
+          {works.map((w) => (
+            <Card key={w.id} elevation={1} sx={{ mb: 1.5 }}>
+              <CardContent sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                <Avatar sx={{ bgcolor: 'primary.light', width: 40, height: 40 }}>
+                  <BuildIcon sx={{ fontSize: 20 }} />
+                </Avatar>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="subtitle2">{w.work_name}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {w.volume} {w.unit || ''} &times; {parseFloat(w.rate || 0).toLocaleString('ru-RU')} = {parseFloat(w.total || 0).toLocaleString('ru-RU')} руб.
+                  </Typography>
                 </Box>
-              ))}
-            </List>
-            <Typography variant="subtitle1" sx={{ mt: 2, fontWeight: 600 }}>
-              Итого: {totalCost.toLocaleString('ru-RU')} руб.
-            </Typography>
-          </CardContent>
-        </Card>
+                {w.has_photos
+                  ? <Chip icon={<PhotoCameraIcon />} label="Фото" size="small" color="success" />
+                  : <Chip icon={<PhotoCameraIcon />} label="Нет" size="small" color="warning" />
+                }
+              </CardContent>
+            </Card>
+          ))}
+          <Card elevation={2} sx={{ mb: 2, bgcolor: 'primary.main', color: 'white' }}>
+            <CardContent sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Итого</Typography>
+              <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                {totalCost.toLocaleString('ru-RU')} руб.
+              </Typography>
+            </CardContent>
+          </Card>
+        </>
       ) : (
-        <Typography color="text.secondary" align="center" sx={{ my: 4 }}>
-          Работы ещё не добавлены
-        </Typography>
+        <Card elevation={0} sx={{ py: 4, textAlign: 'center', bgcolor: 'grey.50' }}>
+          <BuildIcon sx={{ fontSize: 48, color: 'grey.400', mb: 1 }} />
+          <Typography color="text.secondary">Работы ещё не добавлены</Typography>
+          <Typography variant="body2" color="text.secondary">Нажмите + чтобы добавить</Typography>
+        </Card>
       )}
 
-      <Button
-        variant="contained"
-        color="error"
-        startIcon={<ExitToAppIcon />}
-        fullWidth
-        onClick={() => navigate(`/depart/${sessionId}`)}
-        sx={{ mb: 2 }}
-      >
+      <Button variant="outlined" color="error" startIcon={<ExitToAppIcon />} fullWidth onClick={() => navigate(`/depart/${sessionId}`)} sx={{ mt: 2 }}>
         Покинуть объект
       </Button>
 
-      <Fab
-        color="primary"
-        sx={{ position: 'fixed', bottom: 90, right: 16, zIndex: 1200 }}
-        onClick={() => navigate(`/add-work/${sessionId}`)}
-      >
+      <Fab color="primary" sx={{ position: 'fixed', bottom: 90, right: 16, zIndex: 1200 }} onClick={() => navigate(`/add-work/${sessionId}`)}>
         <AddIcon />
       </Fab>
     </Box>

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { enqueueRequest } from './sync';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
@@ -18,6 +19,8 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
+
+    // Refresh token
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
       const refresh = localStorage.getItem('refresh_token');
@@ -36,6 +39,19 @@ api.interceptors.response.use(
         }
       }
     }
+
+    // Офлайн: сохранить POST/PATCH/DELETE в очередь
+    if (!error.response && error.code === 'ERR_NETWORK' && original.method !== 'get') {
+      const hasFile = original.headers?.['Content-Type']?.includes('multipart');
+      await enqueueRequest(original.method, original.url, original.data, hasFile);
+      // Вернуть "успех" чтобы UI не ломался
+      return {
+        data: { _offline: true, _message: 'Сохранено офлайн. Будет отправлено при восстановлении сети.' },
+        status: 202,
+        _offline: true,
+      };
+    }
+
     return Promise.reject(error);
   }
 );
