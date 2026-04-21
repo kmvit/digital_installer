@@ -5,7 +5,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 import PhotoCapture from '../components/PhotoCapture';
-import { worksApi, mobileApi } from '../api';
+import { worksApi, mobileApi, getApiErrorMessage } from '../api';
 
 export default function AddWorkPage() {
   const { sessionId } = useParams();
@@ -23,7 +23,7 @@ export default function AddWorkPage() {
     // Загрузить все позиции прайса
     mobileApi.priceItems()
       .then((r) => setPriceItems(r.data?.results || r.data || []))
-      .catch(() => {})
+      .catch((err) => setError(getApiErrorMessage(err, 'Не удалось загрузить список работ')))
       .finally(() => setLoadingItems(false));
   }, []);
 
@@ -51,7 +51,7 @@ export default function AddWorkPage() {
 
       navigate(`/object/${sessionId}`);
     } catch (err) {
-      setError(err.response?.data?.error || JSON.stringify(err.response?.data) || 'Ошибка');
+      setError(getApiErrorMessage(err, 'Ошибка при сохранении работы'));
     } finally {
       setLoading(false);
     }

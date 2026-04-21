@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
-import { workdayApi } from '../api';
+import { workdayApi, getApiErrorMessage } from '../api';
 
 export default function ApprovalPage() {
   const navigate = useNavigate();
@@ -22,7 +22,7 @@ export default function ApprovalPage() {
     setLoading(true);
     workdayApi.pendingApproval()
       .then((r) => setPending(r.data))
-      .catch(() => setError('Ошибка загрузки'))
+      .catch((err) => setError(getApiErrorMessage(err, 'Ошибка загрузки отчётов')))
       .finally(() => setLoading(false));
   };
 
@@ -42,7 +42,7 @@ export default function ApprovalPage() {
       setComment('');
       load();
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка');
+      setError(getApiErrorMessage(err, 'Ошибка при обработке отчёта'));
     } finally {
       setSubmitting(false);
     }

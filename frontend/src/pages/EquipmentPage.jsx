@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { workdayApi } from '../api';
+import { workdayApi, getApiErrorMessage } from '../api';
 
 export default function EquipmentPage() {
   const navigate = useNavigate();
@@ -21,7 +21,7 @@ export default function EquipmentPage() {
   useEffect(() => {
     workdayApi.current()
       .then((r) => setWorkdayId(r.data.id))
-      .catch(() => setError('Нет открытой смены'));
+      .catch((err) => setError(getApiErrorMessage(err, 'Нет открытой смены')));
   }, []);
 
   const addItem = () => setItems([...items, { name: '', status: 'ok', notes: '' }]);
@@ -51,7 +51,7 @@ export default function EquipmentPage() {
       });
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка сохранения');
+      setError(getApiErrorMessage(err, 'Ошибка сохранения чек-листа'));
     } finally {
       setLoading(false);
     }

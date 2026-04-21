@@ -7,7 +7,7 @@ import {
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import PhotoCapture from '../components/PhotoCapture';
 import GpsStatus, { useGps } from '../components/GpsStatus';
-import { mobileApi, workdayApi } from '../api';
+import { mobileApi, workdayApi, getApiErrorMessage } from '../api';
 
 export default function ObjectSelectPage() {
   const navigate = useNavigate();
@@ -26,7 +26,7 @@ export default function ObjectSelectPage() {
         setObjects(objRes.data?.results || objRes.data || []);
         setWorkdayId(wdRes.data.id);
       })
-      .catch(() => setError('Ошибка загрузки'))
+      .catch((err) => setError(getApiErrorMessage(err, 'Не удалось загрузить объекты и смену')))
       .finally(() => setLoading(false));
   }, []);
 
@@ -46,7 +46,7 @@ export default function ObjectSelectPage() {
       if (data.proximity?.warning) alert(data.proximity.warning);
       navigate(`/object/${data.id}`);
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка');
+      setError(getApiErrorMessage(err, 'Ошибка при отметке прибытия'));
     } finally {
       setArriving(false);
     }

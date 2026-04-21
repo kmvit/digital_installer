@@ -4,7 +4,7 @@ import {
   Box, TextField, Button, Typography, Alert, Paper, Avatar,
 } from '@mui/material';
 import EngineeringIcon from '@mui/icons-material/Engineering';
-import { authApi } from '../api';
+import { authApi, getApiErrorMessage } from '../api';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -23,7 +23,7 @@ export default function LoginPage() {
       localStorage.setItem('refresh_token', data.refresh);
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Ошибка авторизации');
+      setError(getApiErrorMessage(err, 'Ошибка авторизации'));
     } finally {
       setLoading(false);
     }

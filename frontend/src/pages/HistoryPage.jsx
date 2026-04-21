@@ -4,7 +4,7 @@ import {
   Box, Typography, Card, CardContent, CardActionArea, Chip,
   CircularProgress, Alert,
 } from '@mui/material';
-import { workdayApi } from '../api';
+import { workdayApi, getApiErrorMessage } from '../api';
 
 const statusLabels = {
   open: { label: 'Открыт', color: 'info' },
@@ -22,7 +22,7 @@ export default function HistoryPage() {
   useEffect(() => {
     workdayApi.history()
       .then((r) => setDays(r.data))
-      .catch(() => setError('Ошибка загрузки'))
+      .catch((err) => setError(getApiErrorMessage(err, 'Ошибка загрузки истории')))
       .finally(() => setLoading(false));
   }, []);
 

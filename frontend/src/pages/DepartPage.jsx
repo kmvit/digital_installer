@@ -5,7 +5,7 @@ import {
 } from '@mui/material';
 import PhotoCapture from '../components/PhotoCapture';
 import GpsStatus, { useGps } from '../components/GpsStatus';
-import { workdayApi } from '../api';
+import { workdayApi, getApiErrorMessage } from '../api';
 
 export default function DepartPage() {
   const { sessionId } = useParams();
@@ -19,7 +19,7 @@ export default function DepartPage() {
   useEffect(() => {
     workdayApi.current()
       .then((r) => setWorkdayId(r.data.id))
-      .catch(() => setError('Нет открытой смены'));
+      .catch((err) => setError(getApiErrorMessage(err, 'Нет открытой смены')));
   }, []);
 
   const handleDepart = async () => {
@@ -39,7 +39,7 @@ export default function DepartPage() {
       await workdayApi.depart(workdayId, formData);
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка');
+      setError(getApiErrorMessage(err, 'Ошибка при отметке убытия'));
     } finally {
       setLoading(false);
     }

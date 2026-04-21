@@ -5,6 +5,49 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
 });
 
+const NETWORK_ERROR_MESSAGE = 'Не удалось подключиться к серверу. Проверьте, что backend запущен.';
+
+export function getApiErrorMessage(error, fallback = 'Произошла ошибка при выполнении запроса') {
+  if (!error?.response) {
+    if (error?.code === 'ERR_NETWORK' || error?.message === 'Network Error') {
+      return NETWORK_ERROR_MESSAGE;
+    }
+    return fallback;
+  }
+
+  const { status, data } = error.response;
+
+  if (typeof data === 'string' && data.trim()) return data;
+  if (data?.error) return data.error;
+  if (data?.detail) {
+    if (data.detail === 'You do not have permission to perform this action.') {
+      return 'Недостаточно прав для выполнения этого действия.';
+    }
+    return data.detail;
+  }
+  if (Array.isArray(data?.non_field_errors) && data.non_field_errors.length > 0) {
+    return data.non_field_errors[0];
+  }
+
+  if (data && typeof data === 'object') {
+    for (const [field, value] of Object.entries(data)) {
+      if (Array.isArray(value) && value.length > 0) {
+        return `${field}: ${value[0]}`;
+      }
+      if (typeof value === 'string' && value.trim()) {
+        return `${field}: ${value}`;
+      }
+    }
+  }
+
+  if (status === 401) return 'Сессия истекла. Войдите в систему заново.';
+  if (status === 403) return 'Недостаточно прав для выполнения этого действия.';
+  if (status === 404) return 'Данные не найдены.';
+  if (status >= 500) return 'Ошибка сервера. Попробуйте позже.';
+
+  return fallback;
+}
+
 // JWT interceptor
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token');

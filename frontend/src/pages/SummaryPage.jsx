@@ -7,7 +7,7 @@ import {
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import BuildIcon from '@mui/icons-material/Build';
-import { workdayApi } from '../api';
+import { workdayApi, getApiErrorMessage } from '../api';
 
 const statusConfig = {
   open: { label: 'Открыт', color: 'info' },
@@ -25,7 +25,7 @@ export default function SummaryPage() {
   useEffect(() => {
     workdayApi.summary(workdayId)
       .then((r) => setSummary(r.data))
-      .catch(() => setError('Ошибка загрузки'))
+      .catch((err) => setError(getApiErrorMessage(err, 'Ошибка загрузки итогов смены')))
       .finally(() => setLoading(false));
   }, [workdayId]);
 

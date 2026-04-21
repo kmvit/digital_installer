@@ -11,7 +11,7 @@ import AddLocationIcon from '@mui/icons-material/AddLocation';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import ChecklistIcon from '@mui/icons-material/Checklist';
-import { workdayApi } from '../api';
+import { workdayApi, getApiErrorMessage } from '../api';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -24,7 +24,7 @@ export default function DashboardPage() {
       .then((r) => setWorkday(r.data))
       .catch((err) => {
         if (err.response?.status === 404) setWorkday(null);
-        else setError('Ошибка загрузки');
+        else setError(getApiErrorMessage(err, 'Не удалось загрузить данные смены'));
       })
       .finally(() => setLoading(false));
   }, []);

@@ -7,7 +7,7 @@ import {
 import GroupsIcon from '@mui/icons-material/Groups';
 import PhotoCapture from '../components/PhotoCapture';
 import GpsStatus, { useGps } from '../components/GpsStatus';
-import { workdayApi, mobileApi } from '../api';
+import { workdayApi, mobileApi, getApiErrorMessage } from '../api';
 
 export default function ClockInPage() {
   const navigate = useNavigate();
@@ -21,7 +21,7 @@ export default function ClockInPage() {
   useEffect(() => {
     mobileApi.myBrigade()
       .then((r) => setMembers(r.data.members || []))
-      .catch(() => {});
+      .catch((err) => setError(getApiErrorMessage(err, 'Не удалось загрузить состав бригады')));
   }, []);
 
   const toggleMember = (id) => {
@@ -45,7 +45,7 @@ export default function ClockInPage() {
       await workdayApi.clockIn(formData);
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка при открытии смены');
+      setError(getApiErrorMessage(err, 'Ошибка при открытии смены'));
     } finally {
       setLoading(false);
     }

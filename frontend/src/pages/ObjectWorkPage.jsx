@@ -8,7 +8,7 @@ import AddIcon from '@mui/icons-material/Add';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import BuildIcon from '@mui/icons-material/Build';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
-import { worksApi } from '../api';
+import { worksApi, getApiErrorMessage } from '../api';
 
 export default function ObjectWorkPage() {
   const { sessionId } = useParams();
@@ -20,7 +20,7 @@ export default function ObjectWorkPage() {
   useEffect(() => {
     worksApi.bySession(sessionId)
       .then((r) => setWorks(r.data))
-      .catch(() => setError('Ошибка загрузки'))
+      .catch((err) => setError(getApiErrorMessage(err, 'Ошибка загрузки работ по объекту')))
       .finally(() => setLoading(false));
   }, [sessionId]);
 

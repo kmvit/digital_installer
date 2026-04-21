@@ -5,7 +5,7 @@ import {
 } from '@mui/material';
 import PhotoCapture from '../components/PhotoCapture';
 import GpsStatus, { useGps } from '../components/GpsStatus';
-import { workdayApi } from '../api';
+import { workdayApi, getApiErrorMessage } from '../api';
 
 export default function ClockOutPage() {
   const navigate = useNavigate();
@@ -18,7 +18,7 @@ export default function ClockOutPage() {
   useEffect(() => {
     workdayApi.current()
       .then((r) => setWorkdayId(r.data.id))
-      .catch(() => setError('Нет открытой смены'));
+      .catch((err) => setError(getApiErrorMessage(err, 'Нет открытой смены')));
   }, []);
 
   const handleClockOut = async () => {
@@ -37,7 +37,7 @@ export default function ClockOutPage() {
       const { data } = await workdayApi.clockOut(formData);
       navigate(`/summary/${data.id}`);
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка');
+      setError(getApiErrorMessage(err, 'Ошибка при завершении смены'));
     } finally {
       setLoading(false);
     }
