@@ -1,9 +1,31 @@
 import axios from 'axios';
 import { enqueueRequest } from './sync';
 
+function resolveApiBaseUrl() {
+  const configured = import.meta.env.VITE_API_URL;
+  if (!configured) return '/api';
+
+  try {
+    const parsed = new URL(configured, window.location.origin);
+    const isLocalApiHost = ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
+    const isLocalFrontendHost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+
+    // В production сборках часто случайно оставляют localhost API.
+    // В таком случае отправляем запросы на тот же домен через /api.
+    if (isLocalApiHost && !isLocalFrontendHost) {
+      return '/api';
+    }
+  } catch {
+    return '/api';
+  }
+
+  return configured;
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: resolveApiBaseUrl(),
 });
+const authBaseUrl = api.defaults.baseURL || '/api';
 
 const NETWORK_ERROR_MESSAGE = 'Не удалось подключиться к серверу. Проверьте, что backend запущен.';
 
@@ -69,7 +91,7 @@ api.interceptors.response.use(
       const refresh = localStorage.getItem('refresh_token');
       if (refresh) {
         try {
-          const { data } = await axios.post((import.meta.env.VITE_API_URL || '/api') + '/auth/token/refresh/', {
+          const { data } = await axios.post(`${authBaseUrl}/auth/token/refresh/`, {
             refresh,
           });
           localStorage.setItem('access_token', data.access);
