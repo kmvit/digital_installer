@@ -26,6 +26,50 @@ class Stage(models.Model):
         return self.name
 
 
+class DecisionStatus(models.TextChoices):
+    ANALYSIS = "analysis", "Анализ"
+    IN_PROGRESS = "in_progress", "Строим"
+    REJECTED = "rejected", "Отказ"
+    TRANSFERRED_TO_SP = "transferred_to_sp", "Передан СП"
+    ARCHIVE_ANALYSIS = "archive_analysis", "Архив анализ"
+
+
+class ConstructionStatus(models.TextChoices):
+    SURVEY = "survey", "Обследовать"
+    SELECT_SOFTWARE = "select_software", "Выбрать ПО"
+    BUILD = "build", "Строить"
+    COMPLETED = "completed", "Завершен"
+    COMPLETED_TODO = "completed_todo", "Завершен (доделать)"
+    COMPLETED_PAID = "completed_paid", "Завершен оплачен"
+
+
+class MaterialsStatus(models.TextChoices):
+    ORDER = "order", "Заказать"
+    ORDERED = "ordered", "Заказаны"
+    ARRIVED = "arrived", "Пришли"
+    SP = "sp", "СП"
+
+
+class PirStatus(models.TextChoices):
+    DEVELOP = "develop", "Разработать"
+    AGREED_RTK = "agreed_rtk", "Согл. с РТК"
+    AGREED_SERVICES = "agreed_services", "Согл. со службами"
+    SUBMIT_PIR = "submit_pir", "Сдать ПИР"
+    COMPLETED = "completed", "Завершен"
+    NOT_TAKEN = "not_taken", "Не брали"
+    SP = "sp", "СП"
+
+
+class AsBuiltStatus(models.TextChoices):
+    ASSIGN = "assign", "Назначить"
+    IN_DEVELOPMENT = "in_development", "Разработка"
+    SUBMITTED_MP = "submitted_mp", "Сдан МП"
+    CHECK_RTK = "check_rtk", "Проверка РТК"
+    REWORK_PP = "rework_pp", "Доработка ПП"
+    SUBMITTED_PP = "submitted_pp", "Сдан ПП"
+    NOT_REQUIRED = "not_required", "Не требуется"
+
+
 class ProjectObject(models.Model):
     """
     objects (id, name, address, lat, lng, customer, stage_id, price_list_id, attrs{})
@@ -48,6 +92,41 @@ class ProjectObject(models.Model):
         help_text="Радиус в метрах для определения присутствия бригады на объекте",
     )
     customer = models.CharField(max_length=255, blank=True, verbose_name="Заказчик")
+    decision_status = models.CharField(
+        max_length=32,
+        choices=DecisionStatus.choices,
+        blank=True,
+        db_index=True,
+        verbose_name="Решение",
+    )
+    construction_status = models.CharField(
+        max_length=32,
+        choices=ConstructionStatus.choices,
+        blank=True,
+        db_index=True,
+        verbose_name="Статус стройки",
+    )
+    materials_status = models.CharField(
+        max_length=32,
+        choices=MaterialsStatus.choices,
+        blank=True,
+        db_index=True,
+        verbose_name="Статус материалы",
+    )
+    pir_status = models.CharField(
+        max_length=32,
+        choices=PirStatus.choices,
+        blank=True,
+        db_index=True,
+        verbose_name="Статус ПИР",
+    )
+    as_built_status = models.CharField(
+        max_length=32,
+        choices=AsBuiltStatus.choices,
+        blank=True,
+        db_index=True,
+        verbose_name="Статус ИД",
+    )
 
     current_stage = models.ForeignKey(
         Stage,

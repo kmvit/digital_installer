@@ -64,6 +64,22 @@ class ProjectObjectViewSet(viewsets.ModelViewSet):
                 | dj_models.Q(customer__icontains=search)
             )
 
+        decision_status = self.request.query_params.get("decision_status")
+        if decision_status:
+            qs = qs.filter(decision_status=decision_status)
+        construction_status = self.request.query_params.get("construction_status")
+        if construction_status:
+            qs = qs.filter(construction_status=construction_status)
+        materials_status = self.request.query_params.get("materials_status")
+        if materials_status:
+            qs = qs.filter(materials_status=materials_status)
+        pir_status = self.request.query_params.get("pir_status")
+        if pir_status:
+            qs = qs.filter(pir_status=pir_status)
+        as_built_status = self.request.query_params.get("as_built_status")
+        if as_built_status:
+            qs = qs.filter(as_built_status=as_built_status)
+
         return qs
 
     # --- PATCH /api/admin/objects/{id}/stage/ ---

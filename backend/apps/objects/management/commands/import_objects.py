@@ -5,9 +5,13 @@
   C (Город) + D (Адрес)    → name
   D (Адрес)                → address
   F (Клиент)               → customer
+  G (Статус/Решение)       → decision_status
   H (Дэдлайн)              → deadline
-  I (Статус стройки)        → current_stage
+  I (Статус стройки)       → construction_status + current_stage
+  J (Статус материалы)     → materials_status
+  K (Статус ПИР)           → pir_status
   L (Ответственный за стройку) → project_manager (FK User)
+  Q (Статус ИД)            → as_built_status
   V (Примечание)            → notes
 """
 
@@ -30,10 +34,54 @@ COL_CITY = 2         # C
 COL_ADDRESS = 3      # D
 COL_DESCRIPTION = 4  # E
 COL_CUSTOMER = 5     # F
+COL_DECISION_STATUS = 6  # G
 COL_DEADLINE = 7     # H
-COL_STAGE = 8        # I
+COL_CONSTRUCTION_STATUS = 8  # I
+COL_MATERIALS_STATUS = 9  # J
+COL_PIR_STATUS = 10  # K
 COL_PM = 11          # L — Ответственный за стройку
+COL_AS_BUILT_STATUS = 16  # Q
 COL_NOTES = 21       # V
+
+DECISION_STATUS_MAP = {
+    "Анализ": "analysis",
+    "Строим": "in_progress",
+    "Отказ": "rejected",
+    "Передан СП": "transferred_to_sp",
+    "Архив анализ": "archive_analysis",
+}
+CONSTRUCTION_STATUS_MAP = {
+    "Обследовать": "survey",
+    "Выбрать ПО": "select_software",
+    "Строить": "build",
+    "Завершен": "completed",
+    "Завершен (доделать)": "completed_todo",
+    "Завершен оплачен": "completed_paid",
+}
+MATERIALS_STATUS_MAP = {
+    "Заказать": "order",
+    "Заказаны": "ordered",
+    "Пришли": "arrived",
+    "СП": "sp",
+}
+PIR_STATUS_MAP = {
+    "Разработать": "develop",
+    "Согл. с РТК": "agreed_rtk",
+    "Согл. со службами": "agreed_services",
+    "Сдать ПИР": "submit_pir",
+    "Завершен": "completed",
+    "Не брали": "not_taken",
+    "СП": "sp",
+}
+AS_BUILT_STATUS_MAP = {
+    "Назначить": "assign",
+    "Разработка": "in_development",
+    "Сдан МП": "submitted_mp",
+    "Проверка РТК": "check_rtk",
+    "Доработка ПП": "rework_pp",
+    "Сдан ПП": "submitted_pp",
+    "Не требуется": "not_required",
+}
 
 
 def build_name(city: str, address: str, description: str) -> str:
@@ -107,6 +155,16 @@ def _get_or_create_pm(raw_name: str, user_map: dict[str, User]) -> User | None:
     return user
 
 
+def _map_status(raw_value: str, mapping: dict[str, str], row_idx: int, field_title: str) -> tuple[str, str | None]:
+    if not raw_value:
+        return "", None
+    mapped = mapping.get(raw_value)
+    if mapped:
+        return mapped, None
+    valid = ", ".join(mapping.keys())
+    return "", f"Строка {row_idx}: недопустимое значение '{raw_value}' для поля '{field_title}'. Допустимо: {valid}."
+
+
 def import_objects_from_reader(reader: XlsxReader, sheet: str | None = None) -> dict:
     """Импортирует объекты, возвращает статистику."""
     stage_map: dict[str, Stage] = {
@@ -127,9 +185,13 @@ def import_objects_from_reader(reader: XlsxReader, sheet: str | None = None) -> 
         address = clean_text(row[COL_ADDRESS])
         description = clean_text(row[COL_DESCRIPTION])
         customer = clean_text(row[COL_CUSTOMER])
+        decision_raw = clean_text(row[COL_DECISION_STATUS])
         deadline_raw = clean_text(row[COL_DEADLINE])
-        stage_raw = clean_text(row[COL_STAGE])
+        construction_raw = clean_text(row[COL_CONSTRUCTION_STATUS])
+        materials_raw = clean_text(row[COL_MATERIALS_STATUS])
+        pir_raw = clean_text(row[COL_PIR_STATUS])
         pm_raw = clean_text(row[COL_PM])
+        as_built_raw = clean_text(row[COL_AS_BUILT_STATUS])
         notes = clean_text(row[COL_NOTES])
 
         name = build_name(city, address, description)
@@ -142,7 +204,19 @@ def import_objects_from_reader(reader: XlsxReader, sheet: str | None = None) -> 
         if dt:
             deadline = dt.date()
 
-        current_stage = stage_map.get(stage_raw.lower().strip()) if stage_raw else None
+        decision_status, decision_error = _map_status(decision_raw, DECISION_STATUS_MAP, row_idx, "Решение")
+        construction_status, construction_error = _map_status(construction_raw, CONSTRUCTION_STATUS_MAP, row_idx, "Статус стройки")
+        materials_status, materials_error = _map_status(materials_raw, MATERIALS_STATUS_MAP, row_idx, "Статус материалы")
+        pir_status, pir_error = _map_status(pir_raw, PIR_STATUS_MAP, row_idx, "Статус ПИР")
+        as_built_status, as_built_error = _map_status(as_built_raw, AS_BUILT_STATUS_MAP, row_idx, "Статус ИД")
+
+        row_errors = [e for e in (decision_error, construction_error, materials_error, pir_error, as_built_error) if e]
+        if row_errors:
+            errors.extend(row_errors)
+            skipped += 1
+            continue
+
+        current_stage = stage_map.get(construction_raw.lower().strip()) if construction_raw else None
         project_manager = _get_or_create_pm(pm_raw, user_map)
 
         with transaction.atomic():
@@ -151,6 +225,11 @@ def import_objects_from_reader(reader: XlsxReader, sheet: str | None = None) -> 
                 defaults={
                     "address": address,
                     "customer": customer,
+                    "decision_status": decision_status,
+                    "construction_status": construction_status,
+                    "materials_status": materials_status,
+                    "pir_status": pir_status,
+                    "as_built_status": as_built_status,
                     "deadline": deadline,
                     "current_stage": current_stage,
                     "project_manager": project_manager,

@@ -47,8 +47,15 @@ class ProjectObjectForm(forms.ModelForm):
 @admin.register(ProjectObject)
 class ProjectObjectAdmin(admin.ModelAdmin):
     form = ProjectObjectForm
-    list_display = ("id", "name", "customer", "current_stage", "price_list", "deadline", "geofence_status", "is_archived", "updated_at")
-    list_filter = ("is_archived", "price_list", "current_stage")
+    list_display = (
+        "id", "name", "customer",
+        "decision_status", "construction_status", "materials_status", "pir_status", "as_built_status",
+        "current_stage", "price_list", "deadline", "geofence_status", "is_archived", "updated_at",
+    )
+    list_filter = (
+        "is_archived", "price_list", "current_stage",
+        "decision_status", "construction_status", "materials_status", "pir_status", "as_built_status",
+    )
     search_fields = ("name", "address", "customer")
     inlines = [ObjectStageInline, ObjectDocumentInline]
     change_list_template = "admin/objects/projectobject/change_list.html"

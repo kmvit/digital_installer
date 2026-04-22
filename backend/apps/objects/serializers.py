@@ -48,11 +48,21 @@ class ObjectDocumentSerializer(serializers.ModelSerializer):
 class ProjectObjectListSerializer(serializers.ModelSerializer):
     price_list_title = serializers.CharField(source="price_list.title", read_only=True, default=None)
     current_stage_name = serializers.CharField(source="current_stage.name", read_only=True, default=None)
+    decision_status_display = serializers.CharField(source="get_decision_status_display", read_only=True)
+    construction_status_display = serializers.CharField(source="get_construction_status_display", read_only=True)
+    materials_status_display = serializers.CharField(source="get_materials_status_display", read_only=True)
+    pir_status_display = serializers.CharField(source="get_pir_status_display", read_only=True)
+    as_built_status_display = serializers.CharField(source="get_as_built_status_display", read_only=True)
 
     class Meta:
         model = ProjectObject
         fields = (
             "id", "name", "address", "customer",
+            "decision_status", "decision_status_display",
+            "construction_status", "construction_status_display",
+            "materials_status", "materials_status_display",
+            "pir_status", "pir_status_display",
+            "as_built_status", "as_built_status_display",
             "current_stage", "current_stage_name",
             "price_list", "price_list_title",
             "deadline", "is_archived",
@@ -69,6 +79,11 @@ class ProjectObjectDetailSerializer(serializers.ModelSerializer):
     project_manager_name = serializers.CharField(source="project_manager.get_full_name", read_only=True, default=None)
     brigade_name = serializers.CharField(source="brigade.name", read_only=True, default=None)
     current_stage_name = serializers.CharField(source="current_stage.name", read_only=True, default=None)
+    decision_status_display = serializers.CharField(source="get_decision_status_display", read_only=True)
+    construction_status_display = serializers.CharField(source="get_construction_status_display", read_only=True)
+    materials_status_display = serializers.CharField(source="get_materials_status_display", read_only=True)
+    pir_status_display = serializers.CharField(source="get_pir_status_display", read_only=True)
+    as_built_status_display = serializers.CharField(source="get_as_built_status_display", read_only=True)
     object_stages = ObjectStageSerializer(many=True, read_only=True)
     documents = ObjectDocumentSerializer(many=True, read_only=True)
 
@@ -79,6 +94,11 @@ class ProjectObjectDetailSerializer(serializers.ModelSerializer):
             "name", "address", "latitude", "longitude",
             "geofence_polygon", "presence_radius",
             "customer",
+            "decision_status", "decision_status_display",
+            "construction_status", "construction_status_display",
+            "materials_status", "materials_status_display",
+            "pir_status", "pir_status_display",
+            "as_built_status", "as_built_status_display",
             "current_stage", "current_stage_name",
             "price_list", "price_list_title",
             "project_manager", "project_manager_name",
@@ -90,6 +110,11 @@ class ProjectObjectDetailSerializer(serializers.ModelSerializer):
         read_only_fields = (
             "id", "price_list_title", "project_manager_name",
             "brigade_name", "current_stage_name",
+            "decision_status_display",
+            "construction_status_display",
+            "materials_status_display",
+            "pir_status_display",
+            "as_built_status_display",
             "object_stages", "documents",
             "created_at", "updated_at",
         )
@@ -106,7 +131,13 @@ class ProjectObjectWriteSerializer(serializers.ModelSerializer):
             "id",
             "name", "address", "latitude", "longitude",
             "geofence_polygon", "presence_radius",
-            "customer", "current_stage",
+            "customer",
+            "decision_status",
+            "construction_status",
+            "materials_status",
+            "pir_status",
+            "as_built_status",
+            "current_stage",
             "price_list",
             "project_manager", "brigade",
             "deadline", "notes", "attrs", "is_archived",
