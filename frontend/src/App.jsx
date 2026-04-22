@@ -13,6 +13,7 @@ import DepartPage from "./pages/DepartPage";
 import SummaryPage from "./pages/SummaryPage";
 import ApprovalPage from "./pages/ApprovalPage";
 import HistoryPage from "./pages/HistoryPage";
+import ReportsPage from "./pages/ReportsPage";
 
 export default function App() {
   return (
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/summary/:workdayId" element={<SummaryPage />} />
         <Route path="/approval" element={<ApprovalPage />} />
         <Route path="/history" element={<HistoryPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
       </Route>
     </Routes>
   );

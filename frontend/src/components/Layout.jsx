@@ -8,6 +8,7 @@ import HomeIcon from '@mui/icons-material/Home';
 import WorkIcon from '@mui/icons-material/Engineering';
 import HistoryIcon from '@mui/icons-material/History';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 import LogoutIcon from '@mui/icons-material/Logout';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
 import SyncIcon from '@mui/icons-material/Sync';
@@ -15,6 +16,7 @@ import { authApi } from '../api';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 
 const APPROVER_ROLES = ['administrator', 'director', 'project_manager'];
+const REPORT_ROLES = ['administrator', 'director', 'project_manager', 'support_manager', 'accountant'];
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -35,6 +37,9 @@ export default function Layout() {
     ];
     if (user && APPROVER_ROLES.includes(user.role)) {
       items.push({ label: 'Приёмка', icon: <CheckCircleIcon />, path: '/approval' });
+    }
+    if (user && REPORT_ROLES.includes(user.role)) {
+      items.push({ label: 'Отчёты', icon: <AssessmentIcon />, path: '/reports' });
     }
     return items;
   }, [user]);

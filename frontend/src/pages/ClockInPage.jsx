@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Button, Typography, Alert, Checkbox, FormControlLabel,
-  List, ListItem, CircularProgress, Card, CardContent, Avatar,
+  List, ListItem, CircularProgress, Card, CardContent, Chip,
 } from '@mui/material';
 import GroupsIcon from '@mui/icons-material/Groups';
 import PhotoCapture from '../components/PhotoCapture';
@@ -16,12 +16,32 @@ export default function ClockInPage() {
   const [members, setMembers] = useState([]);
   const [selected, setSelected] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [currentWorkday, setCurrentWorkday] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    mobileApi.myBrigade()
-      .then((r) => setMembers(r.data.members || []))
-      .catch((err) => setError(getApiErrorMessage(err, 'Не удалось загрузить состав бригады')));
+    const loadData = async () => {
+      try {
+        const currentResp = await workdayApi.current();
+        setCurrentWorkday(currentResp.data);
+      } catch (err) {
+        if (err.response?.status !== 404) {
+          setError(getApiErrorMessage(err, 'Не удалось загрузить данные смены'));
+        }
+      }
+
+      try {
+        const brigadeResp = await mobileApi.myBrigade();
+        setMembers(brigadeResp.data.members || []);
+      } catch (err) {
+        setError((prev) => prev || getApiErrorMessage(err, 'Не удалось загрузить состав бригады'));
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+
+    loadData();
   }, []);
 
   const toggleMember = (id) => {
@@ -50,6 +70,38 @@ export default function ClockInPage() {
       setLoading(false);
     }
   };
+
+  if (initialLoading) {
+    return <Box sx={{ textAlign: 'center', mt: 8 }}><CircularProgress /></Box>;
+  }
+
+  if (currentWorkday) {
+    const clockIn = new Date(currentWorkday.clock_in_at);
+    return (
+      <Box>
+        <Typography variant="h5" gutterBottom>Смена</Typography>
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+        <Card elevation={1} sx={{ mb: 2 }}>
+          <CardContent>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>Текущая смена</Typography>
+            <Typography variant="h6" sx={{ mb: 1 }}>Смена уже открыта</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Начало: {clockIn.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+            </Typography>
+            <Chip label={currentWorkday.brigade_name} size="small" color="primary" sx={{ mt: 1.5 }} />
+          </CardContent>
+        </Card>
+
+        <Button variant="contained" fullWidth sx={{ mb: 1.5 }} onClick={() => navigate('/')}>
+          Перейти на главную
+        </Button>
+        <Button variant="outlined" color="error" fullWidth onClick={() => navigate('/clock-out')}>
+          Завершить смену
+        </Button>
+      </Box>
+    );
+  }
 
   return (
     <Box>

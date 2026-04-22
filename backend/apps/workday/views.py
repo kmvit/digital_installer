@@ -1,6 +1,8 @@
+import csv
+import io
 from decimal import Decimal
 
-from django.db.models import Sum
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
@@ -11,6 +13,7 @@ from rest_framework.viewsets import GenericViewSet
 from apps.objects.models import ProjectObject
 from apps.objects.serializers import ProjectObjectListSerializer
 from apps.users.models import Brigade
+from apps.users.models import RoleCode
 
 from .models import (
     CompletedWork,
@@ -608,3 +611,354 @@ class CompletedWorkViewSet(GenericViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save(completed_work=work)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class ReportViewSet(GenericViewSet):
+    """Отчётность по рабочим дням: табель, сдельная, акты, экспорт."""
+
+    REPORT_ROLES = {
+        RoleCode.ADMINISTRATOR,
+        RoleCode.DIRECTOR,
+        RoleCode.PROJECT_MANAGER,
+        RoleCode.SUPPORT_MANAGER,
+        RoleCode.ACCOUNTANT,
+    }
+    parser_classes = (JSONParser,)
+
+    @staticmethod
+    def _pdf_escape(text):
+        return (
+            str(text)
+            .replace("\\", "\\\\")
+            .replace("(", "\\(")
+            .replace(")", "\\)")
+        )
+
+    def _build_simple_pdf(self, lines):
+        """
+        Собирает минимальный валидный PDF (A4, Helvetica).
+        Используем ASCII-safe текст, чтобы файл гарантированно открывался
+        без внешних зависимостей.
+        """
+        safe_lines = [
+            line.encode("latin-1", errors="replace").decode("latin-1")
+            for line in lines
+        ]
+
+        commands = ["BT", "/F1 10 Tf", "50 800 Td"]
+        first = True
+        for line in safe_lines:
+            if first:
+                commands.append(f"({self._pdf_escape(line)}) Tj")
+                first = False
+            else:
+                commands.append(f"0 -14 Td ({self._pdf_escape(line)}) Tj")
+        commands.append("ET")
+        stream_data = "\n".join(commands).encode("latin-1", errors="replace")
+
+        objects = []
+        objects.append(b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n")
+        objects.append(b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+        objects.append(
+            b"3 0 obj\n"
+            b"<< /Type /Page /Parent 2 0 R "
+            b"/MediaBox [0 0 595 842] "
+            b"/Resources << /Font << /F1 4 0 R >> >> "
+            b"/Contents 5 0 R >>\n"
+            b"endobj\n"
+        )
+        objects.append(b"4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n")
+        objects.append(
+            b"5 0 obj\n"
+            + f"<< /Length {len(stream_data)} >>\n".encode("ascii")
+            + b"stream\n"
+            + stream_data
+            + b"\nendstream\nendobj\n"
+        )
+
+        pdf = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+        offsets = [0]
+        for obj in objects:
+            offsets.append(len(pdf))
+            pdf.extend(obj)
+
+        xref_pos = len(pdf)
+        pdf.extend(f"xref\n0 {len(offsets)}\n".encode("ascii"))
+        pdf.extend(b"0000000000 65535 f \n")
+        for offset in offsets[1:]:
+            pdf.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+
+        pdf.extend(
+            (
+                "trailer\n"
+                f"<< /Size {len(offsets)} /Root 1 0 R >>\n"
+                "startxref\n"
+                f"{xref_pos}\n"
+                "%%EOF\n"
+            ).encode("ascii")
+        )
+        return bytes(pdf)
+
+    def _ensure_report_access(self, request):
+        if request.user.role not in self.REPORT_ROLES:
+            return Response(
+                {"detail": "Недостаточно прав для просмотра отчётности."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return None
+
+    def _filtered_workdays(self, request):
+        qs = (
+            WorkDay.objects.select_related("brigade", "foreman")
+            .prefetch_related("workers_present", "sessions__project_object", "sessions__completed_works__price_list_item")
+            .all()
+        )
+        brigade_id = request.query_params.get("brigade")
+        date_from = request.query_params.get("date_from")
+        date_to = request.query_params.get("date_to")
+        object_id = request.query_params.get("object")
+
+        if brigade_id:
+            qs = qs.filter(brigade_id=brigade_id)
+        if date_from:
+            qs = qs.filter(date__gte=date_from)
+        if date_to:
+            qs = qs.filter(date__lte=date_to)
+        if object_id:
+            qs = qs.filter(sessions__project_object_id=object_id).distinct()
+        return qs.order_by("-date", "-clock_in_at")
+
+    def _timesheet_rows(self, request):
+        rows = []
+        for wd in self._filtered_workdays(request):
+            worker_names = [
+                worker.get_full_name() or worker.username
+                for worker in wd.workers_present.all()
+            ]
+            worked_hours = Decimal("0.00")
+            overtime_hours = Decimal("0.00")
+            if wd.clock_in_at and wd.clock_out_at:
+                duration = wd.clock_out_at - wd.clock_in_at
+                total_hours = Decimal(duration.total_seconds() / 3600).quantize(Decimal("0.01"))
+                worked_hours = total_hours
+                overtime_hours = max(total_hours - Decimal("8.00"), Decimal("0.00"))
+
+            rows.append(
+                {
+                    "workday_id": wd.id,
+                    "date": wd.date.isoformat(),
+                    "brigade": wd.brigade.name,
+                    "foreman": wd.foreman.get_full_name() or wd.foreman.username,
+                    "workers": worker_names,
+                    "clock_in_at": wd.clock_in_at.isoformat() if wd.clock_in_at else None,
+                    "clock_out_at": wd.clock_out_at.isoformat() if wd.clock_out_at else None,
+                    "hours": str(worked_hours),
+                    "overtime_hours": str(overtime_hours),
+                    "status": wd.status,
+                }
+            )
+        return rows
+
+    def _piecework_rows(self, request):
+        rows = []
+        for wd in self._filtered_workdays(request):
+            for session in wd.sessions.all():
+                for work in session.completed_works.all():
+                    rate = work.price_list_item.base_rate or Decimal("0")
+                    total = (work.volume * rate).quantize(Decimal("0.01"))
+                    rows.append(
+                        {
+                            "workday_id": wd.id,
+                            "date": wd.date.isoformat(),
+                            "brigade": wd.brigade.name,
+                            "object": session.project_object.name,
+                            "work_name": work.price_list_item.name,
+                            "unit": work.price_list_item.unit,
+                            "volume": str(work.volume),
+                            "rate": str(rate),
+                            "amount": str(total),
+                        }
+                    )
+        return rows
+
+    def _completion_act_rows(self, request):
+        grouped = {}
+        for row in self._piecework_rows(request):
+            key = (row["object"], row["work_name"], row["unit"], row["rate"])
+            existing = grouped.get(key)
+            current_volume = Decimal(row["volume"])
+            current_amount = Decimal(row["amount"])
+            if not existing:
+                grouped[key] = {
+                    "object": row["object"],
+                    "work_name": row["work_name"],
+                    "unit": row["unit"],
+                    "rate": row["rate"],
+                    "volume": current_volume,
+                    "amount": current_amount,
+                }
+            else:
+                existing["volume"] += current_volume
+                existing["amount"] += current_amount
+        rows = []
+        for item in grouped.values():
+            rows.append(
+                {
+                    "object": item["object"],
+                    "work_name": item["work_name"],
+                    "unit": item["unit"],
+                    "rate": item["rate"],
+                    "volume": str(item["volume"].quantize(Decimal("0.001"))),
+                    "amount": str(item["amount"].quantize(Decimal("0.01"))),
+                }
+            )
+        return sorted(rows, key=lambda x: (x["object"], x["work_name"]))
+
+    def _equipment_act_rows(self, request):
+        rows = []
+        for wd in self._filtered_workdays(request):
+            morning = (
+                EquipmentChecklist.objects
+                .filter(workday=wd, checklist_type="morning")
+                .prefetch_related("items")
+                .first()
+            )
+            evening = (
+                EquipmentChecklist.objects
+                .filter(workday=wd, checklist_type="evening")
+                .prefetch_related("items")
+                .first()
+            )
+            morning_items = {item.name: item.status for item in (morning.items.all() if morning else [])}
+            evening_items = {item.name: item.status for item in (evening.items.all() if evening else [])}
+
+            for name in sorted(set(morning_items) | set(evening_items)):
+                rows.append(
+                    {
+                        "workday_id": wd.id,
+                        "date": wd.date.isoformat(),
+                        "brigade": wd.brigade.name,
+                        "item_name": name,
+                        "morning_status": morning_items.get(name),
+                        "evening_status": evening_items.get(name),
+                        "is_mismatch": morning_items.get(name) != evening_items.get(name),
+                    }
+                )
+        return rows
+
+    @action(detail=False, methods=["get"], url_path="timesheet")
+    def timesheet(self, request):
+        denied = self._ensure_report_access(request)
+        if denied:
+            return denied
+        return Response({"rows": self._timesheet_rows(request)})
+
+    @action(detail=False, methods=["get"], url_path="piecework")
+    def piecework(self, request):
+        denied = self._ensure_report_access(request)
+        if denied:
+            return denied
+        rows = self._piecework_rows(request)
+        total_amount = sum((Decimal(row["amount"]) for row in rows), Decimal("0.00"))
+        return Response({"rows": rows, "total_amount": str(total_amount.quantize(Decimal("0.01")))})
+
+    @action(detail=False, methods=["get"], url_path="completion-act")
+    def completion_act(self, request):
+        denied = self._ensure_report_access(request)
+        if denied:
+            return denied
+        rows = self._completion_act_rows(request)
+        total_amount = sum((Decimal(row["amount"]) for row in rows), Decimal("0.00"))
+        return Response({"rows": rows, "total_amount": str(total_amount.quantize(Decimal("0.01")))})
+
+    @action(detail=False, methods=["get"], url_path="equipment-act")
+    def equipment_act(self, request):
+        denied = self._ensure_report_access(request)
+        if denied:
+            return denied
+        rows = self._equipment_act_rows(request)
+        mismatch_count = sum(1 for row in rows if row["is_mismatch"])
+        return Response({"rows": rows, "mismatch_count": mismatch_count})
+
+    @action(detail=False, methods=["get"], url_path="filters")
+    def filters(self, request):
+        denied = self._ensure_report_access(request)
+        if denied:
+            return denied
+
+        brigades = (
+            Brigade.objects.filter(workdays__isnull=False)
+            .distinct()
+            .order_by("name")
+        )
+        objects = (
+            ProjectObject.objects.filter(work_sessions__isnull=False)
+            .distinct()
+            .order_by("name")
+        )
+
+        return Response(
+            {
+                "brigades": [
+                    {"id": b.id, "name": b.name}
+                    for b in brigades
+                ],
+                "objects": [
+                    {"id": obj.id, "name": obj.name}
+                    for obj in objects
+                ],
+            }
+        )
+
+    @action(detail=False, methods=["get"], url_path="export/(?P<export_format>[^/.]+)")
+    def export(self, request, export_format=None):
+        denied = self._ensure_report_access(request)
+        if denied:
+            return denied
+
+        report_type = request.query_params.get("report", "timesheet")
+        report_map = {
+            "timesheet": self._timesheet_rows,
+            "piecework": self._piecework_rows,
+            "completion_act": self._completion_act_rows,
+            "equipment_act": self._equipment_act_rows,
+        }
+        builder = report_map.get(report_type)
+        if not builder:
+            return Response(
+                {"error": "Неизвестный тип отчёта. Доступно: timesheet, piecework, completion_act, equipment_act."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        rows = builder(request)
+        if export_format == "xlsx":
+            buffer = io.StringIO()
+            if rows:
+                writer = csv.DictWriter(buffer, fieldnames=list(rows[0].keys()))
+                writer.writeheader()
+                writer.writerows(rows)
+            else:
+                buffer.write("Нет данных\n")
+            response = HttpResponse(
+                buffer.getvalue(),
+                content_type="text/csv; charset=utf-8",
+            )
+            response["Content-Disposition"] = f'attachment; filename="{report_type}.csv"'
+            return response
+
+        if export_format == "pdf":
+            content = [f"Report: {report_type}", f"Generated at: {timezone.now().isoformat()}", ""]
+            if not rows:
+                content.append("No data for selected period.")
+            else:
+                preview_rows = rows[:200]
+                for idx, row in enumerate(preview_rows, start=1):
+                    content.append(f"{idx}. " + "; ".join(f"{k}={v}" for k, v in row.items()))
+                if len(rows) > len(preview_rows):
+                    content.append(f"... more rows: {len(rows) - len(preview_rows)}")
+            payload = self._build_simple_pdf(content)
+            response = HttpResponse(payload, content_type="application/pdf")
+            response["Content-Disposition"] = f'attachment; filename="{report_type}.pdf"'
+            return response
+
+        return Response({"error": "Поддерживаются форматы: xlsx, pdf."}, status=status.HTTP_400_BAD_REQUEST)

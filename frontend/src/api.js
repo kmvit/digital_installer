@@ -189,4 +189,18 @@ export const mobileApi = {
     api.get('/workday/price-items/', { params: { price_list: priceListId } }),
 };
 
+// --- Отчётность ---
+export const reportsApi = {
+  filters: () => api.get('/workday/reports/filters/'),
+  timesheet: (params) => api.get('/workday/reports/timesheet/', { params }),
+  piecework: (params) => api.get('/workday/reports/piecework/', { params }),
+  completionAct: (params) => api.get('/workday/reports/completion-act/', { params }),
+  equipmentAct: (params) => api.get('/workday/reports/equipment-act/', { params }),
+  exportReport: (format, params) =>
+    api.get(`/workday/reports/export/${format}/`, {
+      params,
+      responseType: 'blob',
+    }),
+};
+
 export default api;
