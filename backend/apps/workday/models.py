@@ -151,6 +151,11 @@ class ObjectSession(models.Model):
     departed_longitude = models.DecimalField(
         max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="GPS долгота (убытие)",
     )
+    scheme_photo = models.ImageField(
+        upload_to="workday/scheme/%Y/%m/%d/", blank=True,
+        verbose_name="Схема выполненных работ",
+        help_text="Фото рукописной схемы с отмеченными участками выполнения работ.",
+    )
 
     notes = models.TextField(blank=True, verbose_name="Примечания")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создан")
@@ -169,8 +174,14 @@ class ObjectSession(models.Model):
 # Выполненная работа
 # ---------------------------------------------------------------------------
 
+class WorkStatus(models.TextChoices):
+    ASSIGNED = "assigned", "Назначена"
+    IN_PROGRESS = "in_progress", "В работе"
+    COMPLETED = "completed", "Выполнена"
+
+
 class CompletedWork(models.Model):
-    """Зафиксированная выполненная работа в рамках сессии на объекте."""
+    """Работа в рамках сессии на объекте: назначение → начало → завершение."""
 
     object_session = models.ForeignKey(
         ObjectSession,
@@ -185,9 +196,54 @@ class CompletedWork(models.Model):
         verbose_name="Вид работы",
     )
     volume = models.DecimalField(
-        max_digits=12, decimal_places=3, verbose_name="Объём",
+        max_digits=12, decimal_places=3, verbose_name="Объём (фактический)",
+    )
+    planned_volume = models.DecimalField(
+        max_digits=12, decimal_places=3, null=True, blank=True,
+        verbose_name="Объём (плановый)",
     )
     comment = models.TextField(blank=True, verbose_name="Комментарий")
+    status = models.CharField(
+        max_length=16, choices=WorkStatus.choices,
+        default=WorkStatus.COMPLETED, db_index=True, verbose_name="Статус",
+    )
+
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="assigned_works",
+        verbose_name="Назначена монтажнику",
+    )
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="given_works",
+        verbose_name="Назначил",
+    )
+
+    started_at = models.DateTimeField(null=True, blank=True, verbose_name="Начата")
+    started_photo = models.ImageField(
+        upload_to="workday/work_started/%Y/%m/%d/", blank=True, verbose_name="Фото начала",
+    )
+    started_latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="GPS широта (начало)",
+    )
+    started_longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="GPS долгота (начало)",
+    )
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name="Завершена")
+    completed_photo = models.ImageField(
+        upload_to="workday/work_completed/%Y/%m/%d/", blank=True, verbose_name="Фото завершения",
+    )
+    completed_latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="GPS широта (завершение)",
+    )
+    completed_longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="GPS долгота (завершение)",
+    )
+
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -241,6 +297,41 @@ class WorkPhoto(models.Model):
 
     def __str__(self) -> str:
         return f"Фото #{self.pk} к {self.completed_work}"
+
+
+# ---------------------------------------------------------------------------
+# GPS-чек члена бригады при завершении смены
+# ---------------------------------------------------------------------------
+
+class BrigadeGpsCheck(models.Model):
+    """Подтверждение GPS-местоположения членом бригады в рамках смены."""
+
+    workday = models.ForeignKey(
+        "WorkDay",
+        on_delete=models.CASCADE,
+        related_name="gps_checks",
+        verbose_name="Рабочий день",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="gps_checks",
+        verbose_name="Член бригады",
+    )
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, verbose_name="GPS широта")
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, verbose_name="GPS долгота")
+    captured_at = models.DateTimeField(verbose_name="Время фиксации")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Загружено")
+
+    class Meta:
+        db_table = "workday_brigadegpscheck"
+        verbose_name = "GPS-чек члена бригады"
+        verbose_name_plural = "GPS-чеки бригады"
+        ordering = ("-created_at",)
+        unique_together = ("workday", "user")
+
+    def __str__(self) -> str:
+        return f"GPS {self.user} @ {self.workday}"
 
 
 # ---------------------------------------------------------------------------

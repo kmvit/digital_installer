@@ -1,6 +1,12 @@
 from rest_framework import serializers
 
-from .models import ObjectDocument, ObjectStage, ProjectObject, Stage
+from .models import City, ObjectDocument, ObjectStage, ProjectObject, Stage
+
+
+class CitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = City
+        fields = ("id", "name")
 
 
 # ---------------------------------------------------------------------------
@@ -46,8 +52,8 @@ class ObjectDocumentSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 
 class ProjectObjectListSerializer(serializers.ModelSerializer):
-    price_list_title = serializers.CharField(source="price_list.title", read_only=True, default=None)
     current_stage_name = serializers.CharField(source="current_stage.name", read_only=True, default=None)
+    city_name = serializers.CharField(source="city.name", read_only=True, default=None)
     decision_status_display = serializers.CharField(source="get_decision_status_display", read_only=True)
     construction_status_display = serializers.CharField(source="get_construction_status_display", read_only=True)
     materials_status_display = serializers.CharField(source="get_materials_status_display", read_only=True)
@@ -57,14 +63,13 @@ class ProjectObjectListSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectObject
         fields = (
-            "id", "name", "address", "customer",
+            "id", "name", "city", "city_name", "address", "customer",
             "decision_status", "decision_status_display",
             "construction_status", "construction_status_display",
             "materials_status", "materials_status_display",
             "pir_status", "pir_status_display",
             "as_built_status", "as_built_status_display",
             "current_stage", "current_stage_name",
-            "price_list", "price_list_title",
             "deadline", "is_archived",
             "created_at", "updated_at",
         )
@@ -75,7 +80,7 @@ class ProjectObjectListSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 
 class ProjectObjectDetailSerializer(serializers.ModelSerializer):
-    price_list_title = serializers.CharField(source="price_list.title", read_only=True, default=None)
+    city_name = serializers.CharField(source="city.name", read_only=True, default=None)
     project_manager_name = serializers.CharField(source="project_manager.get_full_name", read_only=True, default=None)
     brigade_name = serializers.CharField(source="brigade.name", read_only=True, default=None)
     current_stage_name = serializers.CharField(source="current_stage.name", read_only=True, default=None)
@@ -91,7 +96,7 @@ class ProjectObjectDetailSerializer(serializers.ModelSerializer):
         model = ProjectObject
         fields = (
             "id",
-            "name", "address", "latitude", "longitude",
+            "name", "city", "city_name", "address", "latitude", "longitude",
             "geofence_polygon", "presence_radius",
             "customer",
             "decision_status", "decision_status_display",
@@ -100,7 +105,7 @@ class ProjectObjectDetailSerializer(serializers.ModelSerializer):
             "pir_status", "pir_status_display",
             "as_built_status", "as_built_status_display",
             "current_stage", "current_stage_name",
-            "price_list", "price_list_title",
+            "available_work_types",
             "project_manager", "project_manager_name",
             "brigade", "brigade_name",
             "deadline", "notes", "attrs", "is_archived",
@@ -108,7 +113,7 @@ class ProjectObjectDetailSerializer(serializers.ModelSerializer):
             "created_at", "updated_at",
         )
         read_only_fields = (
-            "id", "price_list_title", "project_manager_name",
+            "id", "project_manager_name",
             "brigade_name", "current_stage_name",
             "decision_status_display",
             "construction_status_display",
@@ -129,7 +134,7 @@ class ProjectObjectWriteSerializer(serializers.ModelSerializer):
         model = ProjectObject
         fields = (
             "id",
-            "name", "address", "latitude", "longitude",
+            "name", "city", "address", "latitude", "longitude",
             "geofence_polygon", "presence_radius",
             "customer",
             "decision_status",
@@ -138,7 +143,7 @@ class ProjectObjectWriteSerializer(serializers.ModelSerializer):
             "pir_status",
             "as_built_status",
             "current_stage",
-            "price_list",
+            "available_work_types",
             "project_manager", "brigade",
             "deadline", "notes", "attrs", "is_archived",
         )

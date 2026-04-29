@@ -11,7 +11,7 @@ from xml.etree import ElementTree as ET
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from apps.pricing.models import PriceList, PriceListItem
+from apps.pricing.models import PriceList, PriceListItem, WorkType
 
 
 NS = {
@@ -31,6 +31,8 @@ class ParsedRow:
     smr_rate: Decimal | None
     materials_rate: Decimal | None
     pir_rate: Decimal | None
+    section: str
+    work_type: str
 
 
 class XlsxReader:
@@ -169,11 +171,28 @@ class Command(BaseCommand):
                 )
             if not created and replace:
                 price_list.items.all().delete()
+                price_list.work_types.all().delete()
+
+            # Создаём виды работ в порядке появления.
+            type_cache: dict[str, WorkType] = {}
+            order_counter = 0
+            for row in parsed_rows:
+                if not row.work_type or row.work_type in type_cache:
+                    continue
+                wt = WorkType.objects.create(
+                    price_list=price_list,
+                    section=row.section,
+                    name=row.work_type,
+                    order=order_counter,
+                )
+                type_cache[row.work_type] = wt
+                order_counter += 1
 
             PriceListItem._default_manager.bulk_create(
                 [
                     PriceListItem(
                         price_list=price_list,
+                        work_type=type_cache.get(row.work_type),
                         item_number=row.item_number,
                         name=row.name,
                         composition=row.composition,
@@ -195,33 +214,48 @@ class Command(BaseCommand):
             )
         )
 
+    _ITEM_NUMBER_RE = re.compile(r"^[\d.]+$")
+
     def _parse_rows(self, rows: Iterable[list[str]]) -> list[ParsedRow]:
         result: list[ParsedRow] = []
+        current_section = ""
+        current_work_type = ""
 
         for row in rows:
-            item_number = self._clean_text(row[0])
+            col_a = self._clean_text(row[0])
             name = self._clean_text(row[1])
             composition = self._clean_text(row[2])
             unit = self._clean_text(row[3])
             note = self._clean_text(row[4])
-
-            if not item_number:
-                continue
-            if item_number.lower() == "№ п/п":
-                continue
-            if item_number.startswith("Раздел"):
-                continue
-
             base_rate = self._to_decimal(row[5])
+
+            if not col_a and not name:
+                continue
+            if col_a.lower() == "№ п/п":
+                continue
+
+            # Раздел: заголовок уровня раздела.
+            if col_a.startswith("Раздел"):
+                current_section = col_a
+                current_work_type = ""
+                continue
+
+            # Вид работ: текст в col A, нет name, нет ставки, не похож на номер позиции.
+            if col_a and not name and base_rate is None and not self._ITEM_NUMBER_RE.match(col_a):
+                current_work_type = col_a
+                continue
+
+            # Заголовок группы (например "1.1 Строительство ..." без ставки) — пропускаем.
             if base_rate is None:
-                # Пропускаем заголовочные/служебные строки без стоимости.
                 continue
             if not name:
+                continue
+            if not col_a:
                 continue
 
             result.append(
                 ParsedRow(
-                    item_number=item_number,
+                    item_number=col_a,
                     name=name,
                     composition=composition,
                     unit=unit,
@@ -230,6 +264,8 @@ class Command(BaseCommand):
                     smr_rate=self._to_decimal(row[6]),
                     materials_rate=self._to_decimal(row[7]),
                     pir_rate=self._to_decimal(row[8]),
+                    section=current_section,
+                    work_type=current_work_type,
                 )
             )
 

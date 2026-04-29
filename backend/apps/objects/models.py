@@ -10,6 +10,21 @@ class DocumentType(models.TextChoices):
     OTHER = "other", "Прочее"
 
 
+class City(models.Model):
+    """Справочник городов."""
+
+    name = models.CharField(max_length=128, unique=True, verbose_name="Название")
+
+    class Meta:
+        db_table = "objects_city"
+        verbose_name = "Город"
+        verbose_name_plural = "Города"
+        ordering = ("name",)
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Stage(models.Model):
     """Справочник стадий — создаётся один раз, переиспользуется для всех объектов."""
 
@@ -75,7 +90,14 @@ class ProjectObject(models.Model):
     objects (id, name, address, lat, lng, customer, stage_id, price_list_id, attrs{})
     """
 
-    name = models.CharField(max_length=255, unique=True, verbose_name="Название")
+    name = models.CharField(max_length=255, verbose_name="Название")
+    city = models.ForeignKey(
+        "objects.City",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="project_objects",
+        verbose_name="Город",
+    )
     address = models.TextField(blank=True, verbose_name="Адрес")
     latitude = models.DecimalField(
         max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Широта",
@@ -136,12 +158,13 @@ class ProjectObject(models.Model):
         verbose_name="Текущая стадия",
     )
 
-    price_list = models.ForeignKey(
-        "pricing.PriceList",
-        on_delete=models.SET_NULL,
-        null=True, blank=True,
-        related_name="objects",
-        verbose_name="База расценок",
+    available_work_types = models.ManyToManyField(
+        "pricing.WorkType",
+        blank=True,
+        related_name="available_for_objects",
+        verbose_name="Виды работ для объекта",
+        help_text="Виды работ из базы расценок, разрешённые для этого объекта. "
+                  "Если пусто — доступны все виды/работы из привязанной базы.",
     )
 
     project_manager = models.ForeignKey(
@@ -175,6 +198,46 @@ class ProjectObject(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class ObjectWorkPlan(models.Model):
+    """Плановый объём работ по виду работ для конкретного объекта.
+
+    Используется для расчёта прогресса (план/факт/прогноз) по принципам
+    «Управления заработанной стоимостью» (Earned Value). Может расширяться
+    дополнительными атрибутами (стоимость, ответственный, статус и т.д.)
+    """
+
+    project_object = models.ForeignKey(
+        ProjectObject,
+        on_delete=models.CASCADE,
+        related_name="work_plans",
+        verbose_name="Объект",
+    )
+    work_type = models.ForeignKey(
+        "pricing.WorkType",
+        on_delete=models.PROTECT,
+        related_name="object_plans",
+        verbose_name="Вид работ",
+    )
+    planned_volume = models.DecimalField(
+        max_digits=14, decimal_places=3, verbose_name="Плановый объём",
+    )
+    planned_start = models.DateField(null=True, blank=True, verbose_name="План: старт")
+    planned_end = models.DateField(null=True, blank=True, verbose_name="План: завершение")
+    notes = models.TextField(blank=True, verbose_name="Примечания")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создан")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Обновлён")
+
+    class Meta:
+        db_table = "objects_objectworkplan"
+        verbose_name = "Плановый объём работ"
+        verbose_name_plural = "Плановые объёмы работ"
+        unique_together = ("project_object", "work_type")
+        ordering = ("planned_start", "id")
+
+    def __str__(self) -> str:
+        return f"{self.project_object} → {self.work_type}: {self.planned_volume}"
 
 
 class ObjectStage(models.Model):

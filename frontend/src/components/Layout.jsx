@@ -9,6 +9,7 @@ import WorkIcon from '@mui/icons-material/Engineering';
 import HistoryIcon from '@mui/icons-material/History';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AssessmentIcon from '@mui/icons-material/Assessment';
+import DashboardIcon from '@mui/icons-material/Dashboard';
 import LogoutIcon from '@mui/icons-material/Logout';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
 import SyncIcon from '@mui/icons-material/Sync';
@@ -17,6 +18,18 @@ import useOnlineStatus from '../hooks/useOnlineStatus';
 
 const APPROVER_ROLES = ['administrator', 'director', 'project_manager'];
 const REPORT_ROLES = ['administrator', 'director', 'project_manager', 'support_manager', 'accountant'];
+const DIRECTOR_DASH_ROLES = REPORT_ROLES;
+const ROLE_LABELS = {
+  administrator: 'Администратор',
+  director: 'Директор',
+  project_manager: 'Руководитель проекта',
+  foreman: 'Мастер бригады',
+  worker: 'Монтажник',
+  support_manager: 'Менеджер по сопровождению',
+  designer: 'Проектировщик',
+  customer: 'Заказчик',
+  accountant: 'Бухгалтер',
+};
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -30,14 +43,24 @@ export default function Layout() {
   }, []);
 
   const navItems = useMemo(() => {
-    const items = [
-      { label: 'Главная', icon: <HomeIcon />, path: '/' },
-      { label: 'Смена', icon: <WorkIcon />, path: '/clock-in' },
-      { label: 'История', icon: <HistoryIcon />, path: '/history' },
-    ];
+    const items = [];
+    const isShiftUser = user && (user.role === 'foreman' || user.role === 'worker');
+    if (isShiftUser) {
+      items.push({ label: 'Главная', icon: <HomeIcon />, path: '/' });
+      items.push({ label: 'Смена', icon: <WorkIcon />, path: '/clock-in' });
+    }
+    if (user && user.role === 'project_manager') {
+      items.push({ label: 'Мои объекты', icon: <DashboardIcon />, path: '/dashboard/pm' });
+    } else if (user && DIRECTOR_DASH_ROLES.includes(user.role)) {
+      items.push({ label: 'Дашборд', icon: <DashboardIcon />, path: '/dashboard/director' });
+    }
+    if (user && user.role === 'foreman') {
+      items.push({ label: 'Бригада', icon: <DashboardIcon />, path: '/dashboard/master' });
+    }
     if (user && APPROVER_ROLES.includes(user.role)) {
       items.push({ label: 'Приёмка', icon: <CheckCircleIcon />, path: '/approval' });
     }
+    items.push({ label: 'История', icon: <HistoryIcon />, path: '/history' });
     if (user && REPORT_ROLES.includes(user.role)) {
       items.push({ label: 'Отчёты', icon: <AssessmentIcon />, path: '/reports' });
     }
@@ -61,7 +84,7 @@ export default function Layout() {
     <Box sx={{ pb: 8, minHeight: '100vh', bgcolor: 'grey.50' }}>
       <AppBar position="sticky" elevation={1}>
         <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>Монтажник</Typography>
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>Цифровой монтажник</Typography>
 
           {!isOnline && (
             <Chip icon={<CloudOffIcon />} label={pendingCount > 0 ? `Офлайн | ${pendingCount}` : 'Офлайн'} size="small" color="warning" sx={{ mr: 1 }} />
@@ -71,7 +94,16 @@ export default function Layout() {
           )}
 
           {user && (
-            <Typography variant="body2" sx={{ mr: 1 }}>{user.first_name || user.username}</Typography>
+            <Box sx={{ mr: 1, textAlign: 'right', lineHeight: 1.1 }}>
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                {user.first_name || user.username}
+              </Typography>
+              {user.role && (
+                <Typography variant="caption" sx={{ opacity: 0.85, fontSize: 11 }}>
+                  {ROLE_LABELS[user.role] || user.role}
+                </Typography>
+              )}
+            </Box>
           )}
           <IconButton color="inherit" onClick={handleLogout} size="small">
             <LogoutIcon />

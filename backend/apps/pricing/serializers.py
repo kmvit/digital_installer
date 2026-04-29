@@ -1,6 +1,13 @@
 from rest_framework import serializers
 
-from .models import PriceList, PriceListItem
+from .models import PriceList, PriceListItem, WorkType
+
+
+class WorkTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkType
+        fields = ("id", "price_list", "section", "name", "order")
+        read_only_fields = ("id",)
 
 
 class PriceListSerializer(serializers.ModelSerializer):
@@ -24,6 +31,7 @@ class PriceListSerializer(serializers.ModelSerializer):
 
 class PriceListItemSerializer(serializers.ModelSerializer):
     price_list_title = serializers.CharField(source="price_list.title", read_only=True)
+    work_type_name = serializers.CharField(source="work_type.name", read_only=True, default=None)
 
     class Meta:
         model = PriceListItem
@@ -31,6 +39,8 @@ class PriceListItemSerializer(serializers.ModelSerializer):
             "id",
             "price_list",
             "price_list_title",
+            "work_type",
+            "work_type_name",
             "item_number",
             "name",
             "composition",
@@ -43,4 +53,4 @@ class PriceListItemSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "price_list_title", "created_at", "updated_at")
+        read_only_fields = ("id", "price_list_title", "work_type_name", "created_at", "updated_at")

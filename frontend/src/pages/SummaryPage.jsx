@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, CircularProgress, Alert,
-  Chip, Divider, List, ListItem, ListItemText, ListItemIcon,
+  Chip, Divider, List, ListItem, ListItemText, ListItemIcon, Stack,
 } from '@mui/material';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import BuildIcon from '@mui/icons-material/Build';
@@ -55,8 +57,71 @@ export default function SummaryPage() {
               </Typography>
             </Box>
           )}
+          {summary.pm_comment && (
+            <Alert severity={summary.status === 'rejected' ? 'error' : 'info'} sx={{ mt: 1 }}>
+              Комментарий РП: {summary.pm_comment}
+            </Alert>
+          )}
         </CardContent>
       </Card>
+
+      {summary.quality && (
+        <Card elevation={1} sx={{ mb: 2 }}>
+          <CardContent>
+            <Typography variant="subtitle2" gutterBottom>Качество отчёта</Typography>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+              <Chip
+                size="small"
+                icon={summary.quality.all_works_have_photos ? <CheckCircleIcon /> : <WarningAmberIcon />}
+                color={summary.quality.all_works_have_photos ? 'success' : 'warning'}
+                label={summary.quality.all_works_have_photos ? 'Все работы с фото' : `Без фото: ${summary.quality.works_without_photos}`}
+              />
+              <Chip
+                size="small"
+                icon={summary.quality.all_sessions_have_scheme ? <CheckCircleIcon /> : <WarningAmberIcon />}
+                color={summary.quality.all_sessions_have_scheme ? 'success' : 'warning'}
+                label={summary.quality.all_sessions_have_scheme ? 'Все схемы' : `Без схемы: ${summary.quality.sessions_without_scheme}`}
+              />
+              <Chip
+                size="small"
+                icon={summary.quality.all_workers_gps_checked ? <CheckCircleIcon /> : <WarningAmberIcon />}
+                color={summary.quality.all_workers_gps_checked ? 'success' : 'warning'}
+                label={summary.quality.all_workers_gps_checked ? 'GPS-чек: все' : `GPS не подтвердили: ${summary.quality.gps_checks_missing}`}
+              />
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+      {(summary.clock_in_photo || summary.clock_out_photo) && (
+        <Card elevation={1} sx={{ mb: 2 }}>
+          <CardContent>
+            <Typography variant="subtitle2" gutterBottom>Открытие / закрытие смены</Typography>
+            <Stack direction="row" spacing={2}>
+              {summary.clock_in_photo && (
+                <Box sx={{ textAlign: 'center' }}>
+                  <a href={summary.clock_in_photo} target="_blank" rel="noreferrer">
+                    <Box component="img" src={summary.clock_in_photo} alt="Clock-in" sx={{ width: 110, height: 110, objectFit: 'cover', borderRadius: 1, border: '1px solid #ddd' }} />
+                  </a>
+                  <Typography variant="caption" display="block">
+                    {summary.clock_in_at && new Date(summary.clock_in_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                  </Typography>
+                </Box>
+              )}
+              {summary.clock_out_photo && (
+                <Box sx={{ textAlign: 'center' }}>
+                  <a href={summary.clock_out_photo} target="_blank" rel="noreferrer">
+                    <Box component="img" src={summary.clock_out_photo} alt="Clock-out" sx={{ width: 110, height: 110, objectFit: 'cover', borderRadius: 1, border: '1px solid #ddd' }} />
+                  </a>
+                  <Typography variant="caption" display="block">
+                    {summary.clock_out_at && new Date(summary.clock_out_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                  </Typography>
+                </Box>
+              )}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       {summary.sessions?.map((session, idx) => (
         <Card key={idx} elevation={1} sx={{ mb: 2, borderLeft: 4, borderColor: 'primary.main' }}>
@@ -70,6 +135,22 @@ export default function SummaryPage() {
               {session.departed_at && ` — ${new Date(session.departed_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`}
               {session.duration_minutes && ` (${session.duration_minutes} мин)`}
             </Typography>
+            {(session.arrived_photo || session.departed_photo || session.scheme_photo) && (
+              <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: 'wrap' }}>
+                {[
+                  ['arrived_photo', 'Прибытие'],
+                  ['departed_photo', 'Убытие'],
+                  ['scheme_photo', 'Схема'],
+                ].filter(([k]) => session[k]).map(([k, label]) => (
+                  <Box key={k} sx={{ textAlign: 'center' }}>
+                    <a href={session[k]} target="_blank" rel="noreferrer">
+                      <Box component="img" src={session[k]} alt={label} sx={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 1, border: '1px solid #ddd' }} />
+                    </a>
+                    <Typography variant="caption" display="block">{label}</Typography>
+                  </Box>
+                ))}
+              </Stack>
+            )}
             <Divider sx={{ my: 1 }} />
             {session.works?.length > 0 ? (
               <List disablePadding dense>

@@ -12,6 +12,10 @@ export default function DepartPage() {
   const navigate = useNavigate();
   const { position, error: gpsError, loading: gpsLoading } = useGps();
   const [photo, setPhoto] = useState(null);
+  const [photoMeta, setPhotoMeta] = useState(null);
+  const handlePhoto = (file, meta) => { setPhoto(file); setPhotoMeta(meta || null); };
+  const [schemePhoto, setSchemePhoto] = useState(null);
+  const handleSchemePhoto = (file) => setSchemePhoto(file);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [workdayId, setWorkdayId] = useState(null);
@@ -23,17 +27,20 @@ export default function DepartPage() {
   }, []);
 
   const handleDepart = async () => {
-    if (!photo) { setError('Фото обязательно'); return; }
+    if (!photo) { setError('Фото убытия обязательно'); return; }
+    if (!schemePhoto) { setError('Загрузите фото схемы выполненных работ'); return; }
     setLoading(true);
     setError('');
 
     const formData = new FormData();
     formData.append('session_id', sessionId);
     formData.append('photo', photo);
-    if (position) {
-      formData.append('latitude', position.latitude);
-      formData.append('longitude', position.longitude);
-    }
+    formData.append('scheme_photo', schemePhoto);
+    if (photoMeta?.captured_at) formData.append('captured_at', photoMeta.captured_at);
+    const lat = photoMeta?.latitude ?? position?.latitude;
+    const lng = photoMeta?.longitude ?? position?.longitude;
+    if (lat != null) formData.append('latitude', lat);
+    if (lng != null) formData.append('longitude', lng);
 
     try {
       await workdayApi.depart(workdayId, formData);
@@ -55,7 +62,14 @@ export default function DepartPage() {
         <GpsStatus position={position} error={gpsError} loading={gpsLoading} />
       </Box>
 
-      <PhotoCapture onPhoto={setPhoto} label="Фото при убытии" required />
+      <PhotoCapture onPhoto={handlePhoto} label="Фото при убытии" required inputId="depart-photo" />
+
+      <Box sx={{ mt: 2 }}>
+        <Typography variant="subtitle2" gutterBottom>
+          Схема выполненных работ (фото рукописной схемы)
+        </Typography>
+        <PhotoCapture onPhoto={handleSchemePhoto} label="Фото схемы работ" required inputId="depart-scheme" />
+      </Box>
 
       <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
         <Button variant="outlined" onClick={() => navigate(-1)} sx={{ flex: 1 }}>
@@ -65,7 +79,7 @@ export default function DepartPage() {
           variant="contained"
           color="error"
           onClick={handleDepart}
-          disabled={loading || !photo}
+          disabled={loading || !photo || !schemePhoto}
           sx={{ flex: 2 }}
         >
           {loading ? <CircularProgress size={24} /> : 'Покинуть объект'}

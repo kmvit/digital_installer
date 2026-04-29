@@ -1,9 +1,35 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.utils import timezone
 from rest_framework import serializers
 
+
+PHOTO_CAPTURED_AT_MAX_SKEW = timedelta(seconds=120)
+
+
+class _PhotoCaptureBaseSerializer(serializers.Serializer):
+    photo = serializers.ImageField()
+    captured_at = serializers.DateTimeField(required=True)
+    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+
+    def validate_captured_at(self, value):
+        return validate_captured_at(value)
+
+
+def validate_captured_at(value):
+    """Время съёмки должно быть в пределах ±120 секунд от текущего серверного времени."""
+    now = timezone.now()
+    if abs((now - value).total_seconds()) > PHOTO_CAPTURED_AT_MAX_SKEW.total_seconds():
+        raise serializers.ValidationError(
+            "Фото просрочено: метка времени не совпадает с текущим временем сервера. "
+            "Сделайте новое фото."
+        )
+    return value
+
 from .models import (
+    BrigadeGpsCheck,
     CompletedWork,
     EquipmentCheckItem,
     EquipmentChecklist,
@@ -11,6 +37,7 @@ from .models import (
     WorkDay,
     WorkDayStatus,
     WorkPhoto,
+    WorkStatus,
 )
 
 
@@ -19,10 +46,15 @@ from .models import (
 # ---------------------------------------------------------------------------
 
 class WorkPhotoSerializer(serializers.ModelSerializer):
+    captured_at = serializers.DateTimeField(required=True)
+
     class Meta:
         model = WorkPhoto
         fields = ("id", "photo", "latitude", "longitude", "captured_at", "created_at")
         read_only_fields = ("id", "created_at")
+
+    def validate_captured_at(self, value):
+        return validate_captured_at(value)
 
 
 # ---------------------------------------------------------------------------
@@ -39,17 +71,29 @@ class CompletedWorkSerializer(serializers.ModelSerializer):
     )
     total = serializers.SerializerMethodField()
     has_photos = serializers.SerializerMethodField()
+    assigned_to_name = serializers.CharField(source="assigned_to.get_full_name", read_only=True, default=None)
+    object_name = serializers.CharField(source="object_session.project_object.name", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
 
     class Meta:
         model = CompletedWork
         fields = (
-            "id", "object_session", "price_list_item",
+            "id", "object_session", "object_name", "price_list_item",
             "work_name", "unit", "rate",
-            "volume", "total", "comment",
+            "volume", "planned_volume", "total", "comment",
+            "status", "status_display",
+            "assigned_to", "assigned_to_name", "assigned_by",
+            "started_at", "started_photo", "started_latitude", "started_longitude",
+            "completed_at", "completed_photo", "completed_latitude", "completed_longitude",
             "has_photos", "photos",
             "created_by", "created_at",
         )
-        read_only_fields = ("id", "created_by", "created_at")
+        read_only_fields = (
+            "id", "created_by", "created_at",
+            "started_at", "started_photo", "started_latitude", "started_longitude",
+            "completed_at", "completed_photo", "completed_latitude", "completed_longitude",
+            "status",
+        )
 
     def get_total(self, obj) -> str:
         if obj.price_list_item and obj.price_list_item.base_rate:
@@ -57,14 +101,32 @@ class CompletedWorkSerializer(serializers.ModelSerializer):
         return "0"
 
     def get_has_photos(self, obj) -> bool:
-        return obj.photos.exists()
+        return bool(obj.photos.exists() or obj.started_photo or obj.completed_photo)
 
 
 class CompletedWorkWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = CompletedWork
-        fields = ("id", "object_session", "price_list_item", "volume", "comment")
+        fields = ("id", "object_session", "price_list_item", "volume", "planned_volume", "comment", "assigned_to")
         read_only_fields = ("id", "object_session")
+
+
+class WorkStartFinishSerializer(_PhotoCaptureBaseSerializer):
+    """Фото + GPS + captured_at для эндпоинтов start/finish; volume только для finish."""
+    volume = serializers.DecimalField(max_digits=12, decimal_places=3, required=False)
+
+
+class BrigadeGpsCheckSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(source="user.get_full_name", read_only=True, default="")
+    captured_at = serializers.DateTimeField(required=True)
+
+    class Meta:
+        model = BrigadeGpsCheck
+        fields = ("id", "workday", "user", "user_name", "latitude", "longitude", "captured_at", "created_at")
+        read_only_fields = ("id", "workday", "user", "user_name", "created_at")
+
+    def validate_captured_at(self, value):
+        return validate_captured_at(value)
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +146,7 @@ class ObjectSessionSerializer(serializers.ModelSerializer):
             "object_name", "object_address",
             "arrived_at", "arrived_photo",
             "arrived_latitude", "arrived_longitude",
-            "departed_at", "departed_photo",
+            "departed_at", "departed_photo", "scheme_photo",
             "departed_latitude", "departed_longitude",
             "duration_minutes",
             "notes", "completed_works", "created_at",
@@ -226,37 +288,27 @@ class WorkDayListSerializer(serializers.ModelSerializer):
 # Clock-in / Clock-out
 # ---------------------------------------------------------------------------
 
-class ClockInSerializer(serializers.Serializer):
-    photo = serializers.ImageField()
-    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
-    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+class ClockInSerializer(_PhotoCaptureBaseSerializer):
     workers_present = serializers.ListField(
         child=serializers.IntegerField(), required=False, default=list,
     )
 
 
-class ClockOutSerializer(serializers.Serializer):
-    photo = serializers.ImageField()
-    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
-    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+class ClockOutSerializer(_PhotoCaptureBaseSerializer):
+    pass
 
 
 # ---------------------------------------------------------------------------
 # Arrive / Depart
 # ---------------------------------------------------------------------------
 
-class ArriveSerializer(serializers.Serializer):
+class ArriveSerializer(_PhotoCaptureBaseSerializer):
     project_object = serializers.IntegerField()
-    photo = serializers.ImageField()
-    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
-    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
 
 
-class DepartSerializer(serializers.Serializer):
+class DepartSerializer(_PhotoCaptureBaseSerializer):
     session_id = serializers.IntegerField()
-    photo = serializers.ImageField()
-    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
-    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    scheme_photo = serializers.ImageField(required=True)
 
 
 # ---------------------------------------------------------------------------

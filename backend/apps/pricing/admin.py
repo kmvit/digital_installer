@@ -7,7 +7,15 @@ from django.http import HttpResponseRedirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 
-from .models import PriceList, PriceListItem
+from .models import PriceList, PriceListItem, WorkType
+
+
+@admin.register(WorkType)
+class WorkTypeAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "section", "price_list", "order")
+    list_filter = ("price_list",)
+    search_fields = ("name", "section")
+    ordering = ("price_list_id", "order", "name")
 
 
 class PriceListItemInline(admin.TabularInline):
@@ -94,6 +102,6 @@ class PriceListAdmin(admin.ModelAdmin):
 
 @admin.register(PriceListItem)
 class PriceListItemAdmin(admin.ModelAdmin):
-    list_display = ("id", "item_number", "name", "unit", "base_rate", "price_list")
-    list_filter = ("price_list",)
+    list_display = ("id", "item_number", "name", "unit", "base_rate", "work_type", "price_list")
+    list_filter = ("price_list", "work_type")
     search_fields = ("item_number", "name")

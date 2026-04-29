@@ -2,8 +2,9 @@
 Импорт объектов из xlsx-файла (формат «Проекты.xlsx»).
 
 Колонки Excel → поля БД:
-  C (Город) + D (Адрес)    → name
+  C (Город)                → city (FK на City)
   D (Адрес)                → address
+  E (Описание проекта)     → name
   F (Клиент)               → customer
   G (Статус/Решение)       → decision_status
   H (Дэдлайн)              → deadline
@@ -17,6 +18,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import IO
@@ -26,7 +28,7 @@ from django.db.models import Q
 from django.core.management.base import BaseCommand, CommandError
 
 from apps.core.xlsx_utils import XlsxReader, clean_text, parse_date_flexible
-from apps.objects.models import ProjectObject, Stage
+from apps.objects.models import City, ProjectObject, Stage
 from apps.users.models import RoleCode, User
 
 # Индексы колонок (0-based после вычитания, т.к. XlsxReader отдаёт list[str] с 0-index)
@@ -84,10 +86,31 @@ AS_BUILT_STATUS_MAP = {
 }
 
 
-def build_name(city: str, address: str, description: str) -> str:
-    parts = [p for p in (city, address) if p]
-    name = ", ".join(parts) if parts else description
+CITY_PREFIX_RE = re.compile(r"^(?:Город|город|г\.|г\s)\s*", re.UNICODE)
+
+
+def normalize_city(raw: str) -> str:
+    value = clean_text(raw)
+    if not value:
+        return ""
+    return CITY_PREFIX_RE.sub("", value).strip()
+
+
+def build_name(address: str, description: str) -> str:
+    name = description or address
     return name[:255] if name else ""
+
+
+def _get_or_create_city(raw_name: str, cache: dict[str, City]) -> City | None:
+    name = normalize_city(raw_name)
+    if not name:
+        return None
+    key = name.casefold()
+    if key in cache:
+        return cache[key]
+    city, _ = City.objects.get_or_create(name=name)
+    cache[key] = city
+    return city
 
 
 def _register_user(mapping: dict[str, User], user: User) -> None:
@@ -158,7 +181,8 @@ def _get_or_create_pm(raw_name: str, user_map: dict[str, User]) -> User | None:
 def _map_status(raw_value: str, mapping: dict[str, str], row_idx: int, field_title: str) -> tuple[str, str | None]:
     if not raw_value:
         return "", None
-    mapped = mapping.get(raw_value)
+    lookup = {key.casefold(): value for key, value in mapping.items()}
+    mapped = lookup.get(raw_value.casefold())
     if mapped:
         return mapped, None
     valid = ", ".join(mapping.keys())
@@ -171,17 +195,19 @@ def import_objects_from_reader(reader: XlsxReader, sheet: str | None = None) -> 
         s.name.lower().strip(): s for s in Stage.objects.all()
     }
     user_map = _build_user_map()
+    city_cache: dict[str, City] = {c.name.casefold(): c for c in City.objects.all()}
 
     rows = list(reader.read_sheet_rows(sheet_name=sheet, max_columns=22))
     if not rows:
         raise CommandError("Файл пуст или не содержит строк.")
 
     created = 0
+    updated = 0
     skipped = 0
     errors: list[str] = []
 
     for row_idx, row in enumerate(rows[1:], start=2):
-        city = clean_text(row[COL_CITY])
+        city_raw = clean_text(row[COL_CITY])
         address = clean_text(row[COL_ADDRESS])
         description = clean_text(row[COL_DESCRIPTION])
         customer = clean_text(row[COL_CUSTOMER])
@@ -194,10 +220,12 @@ def import_objects_from_reader(reader: XlsxReader, sheet: str | None = None) -> 
         as_built_raw = clean_text(row[COL_AS_BUILT_STATUS])
         notes = clean_text(row[COL_NOTES])
 
-        name = build_name(city, address, description)
+        name = build_name(address, description)
         if not name:
             skipped += 1
             continue
+
+        city = _get_or_create_city(city_raw, city_cache)
 
         deadline = None
         dt = parse_date_flexible(deadline_raw)
@@ -219,30 +247,39 @@ def import_objects_from_reader(reader: XlsxReader, sheet: str | None = None) -> 
         current_stage = stage_map.get(construction_raw.lower().strip()) if construction_raw else None
         project_manager = _get_or_create_pm(pm_raw, user_map)
 
+        defaults = {
+            "city": city,
+            "address": address,
+            "customer": customer,
+            "decision_status": decision_status,
+            "construction_status": construction_status,
+            "materials_status": materials_status,
+            "pir_status": pir_status,
+            "as_built_status": as_built_status,
+            "deadline": deadline,
+            "current_stage": current_stage,
+            "project_manager": project_manager,
+            "notes": notes,
+        }
+
         with transaction.atomic():
-            obj, was_created = ProjectObject.objects.get_or_create(
-                name=name,
-                defaults={
-                    "address": address,
-                    "customer": customer,
-                    "decision_status": decision_status,
-                    "construction_status": construction_status,
-                    "materials_status": materials_status,
-                    "pir_status": pir_status,
-                    "as_built_status": as_built_status,
-                    "deadline": deadline,
-                    "current_stage": current_stage,
-                    "project_manager": project_manager,
-                    "notes": notes,
-                },
-            )
+            qs = ProjectObject.objects.filter(name=name, city=city, address=address)
+            obj = qs.first()
+            if obj is None:
+                obj = ProjectObject.objects.create(name=name, **defaults)
+                was_created = True
+            else:
+                for field, value in defaults.items():
+                    setattr(obj, field, value)
+                obj.save()
+                was_created = False
 
         if was_created:
             created += 1
         else:
-            skipped += 1
+            updated += 1
 
-    return {"created": created, "skipped": skipped, "errors": errors}
+    return {"created": created, "updated": updated, "skipped": skipped, "errors": errors}
 
 
 def import_objects_from_file(file_obj: IO[bytes], sheet: str | None = None) -> dict:
@@ -271,7 +308,7 @@ class Command(BaseCommand):
         result = import_objects_from_reader(reader, sheet=options["sheet"])
 
         self.stdout.write(self.style.SUCCESS(
-            f"Импорт завершён: создано {result['created']}, пропущено {result['skipped']}."
+            f"Импорт завершён: создано {result['created']}, обновлено {result['updated']}, пропущено {result['skipped']}."
         ))
         for err in result["errors"]:
             self.stdout.write(self.style.WARNING(f"  {err}"))

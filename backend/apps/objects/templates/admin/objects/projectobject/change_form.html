@@ -52,6 +52,12 @@
 
 <div id="map-container">
   <h3>Карта объекта</h3>
+  <div style="margin-bottom: 8px; display: flex; gap: 8px; align-items: center;">
+    <input type="text" id="map-address-input" placeholder="Введите адрес и нажмите Enter…"
+           style="flex: 1; padding: 6px 10px; border: 1px solid #999; border-radius: 4px;" />
+    <button type="button" id="map-address-search" class="button" style="cursor:pointer;">Найти</button>
+    <span id="map-address-status" style="font-size: 12px; color: #666;"></span>
+  </div>
   <div id="map"></div>
   <div id="map-hint">
     <span>&#128205; Клик по карте — установить точку объекта (координаты)</span>
@@ -70,6 +76,21 @@
   var latField = document.getElementById('id_latitude');
   var lngField = document.getElementById('id_longitude');
   var polygonField = document.getElementById('id_geofence_polygon');
+  var addressField = document.getElementById('id_address');
+  var cityField = document.getElementById('id_city');
+
+  function getCityName() {
+    if (!cityField) return '';
+    if (cityField.tagName === 'SELECT') {
+      var opt = cityField.options[cityField.selectedIndex];
+      return opt ? opt.text.trim() : '';
+    }
+    return (cityField.value || '').trim();
+  }
+
+  function getAddressValue() {
+    return addressField ? (addressField.value || '').trim() : '';
+  }
 
   // --- Начальные значения ---
   var initLat = latField && latField.value ? parseFloat(latField.value) : null;
@@ -85,9 +106,9 @@
     }
   }
 
-  // --- Центр карты ---
-  var centerLat = initLat || 55.7558;
-  var centerLng = initLng || 37.6173;
+  // --- Центр карты (по умолчанию — г. Советский, ХМАО-Югра) ---
+  var centerLat = initLat || 61.3667;
+  var centerLng = initLng || 63.5833;
   var initZoom = (initLat && initLng) ? 15 : 10;
 
   // --- Инициализация карты ---
@@ -143,6 +164,77 @@
 
   if (latField) latField.addEventListener('change', syncMarkerFromFields);
   if (lngField) lngField.addEventListener('change', syncMarkerFromFields);
+
+  // --- Геокодирование через OSM Nominatim ---
+  function setSearchStatus(text, isError) {
+    var el = document.getElementById('map-address-status');
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = isError ? '#c0392b' : '#666';
+  }
+
+  function geocode(query, zoom) {
+    if (!query) {
+      setSearchStatus('Пустой запрос', true);
+      return;
+    }
+    setSearchStatus('Поиск: ' + query + '…');
+    var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ru&q=' + encodeURIComponent(query);
+    console.log('[geocode] →', url);
+    fetch(url, { headers: { 'Accept': 'application/json' } })
+      .then(function(r) {
+        console.log('[geocode] status', r.status);
+        return r.json();
+      })
+      .then(function(data) {
+        console.log('[geocode] result', data);
+        if (!data || !data.length) {
+          setSearchStatus('Не найдено: ' + query, true);
+          return;
+        }
+        var lat = parseFloat(data[0].lat);
+        var lng = parseFloat(data[0].lon);
+        setMarker(lat, lng);
+        updateCoordFields(lat, lng);
+        map.setView([lat, lng], zoom);
+        setSearchStatus('Найдено: ' + (data[0].display_name || query));
+      })
+      .catch(function(err) {
+        console.error('[geocode] error', err);
+        setSearchStatus('Ошибка: ' + err, true);
+      });
+  }
+
+  // Автогеокодирование по городу при загрузке, если координат ещё нет
+  if (!initLat && !initLng && getCityName()) {
+    geocode(getCityName(), 12);
+  }
+
+  // Поле поиска адреса над картой — Enter или кнопка «Найти» ставят точку
+  var mapAddressInput = document.getElementById('map-address-input');
+  var mapAddressBtn = document.getElementById('map-address-search');
+
+  function runMapAddressSearch() {
+    if (!mapAddressInput) return;
+    var query = mapAddressInput.value.trim();
+    geocode(query, 16);
+  }
+
+  if (mapAddressInput) {
+    mapAddressInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.keyCode === 13) {
+        e.preventDefault();
+        e.stopPropagation();
+        runMapAddressSearch();
+      }
+    });
+  }
+  if (mapAddressBtn) {
+    mapAddressBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      runMapAddressSearch();
+    });
+  }
 
   // --- Полигон (Leaflet Draw) ---
   var drawnItems = new L.FeatureGroup();

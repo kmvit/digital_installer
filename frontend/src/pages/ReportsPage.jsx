@@ -26,6 +26,11 @@ const REPORT_TYPES = [
   { id: 'piecework', label: 'Сдельная ведомость' },
   { id: 'completion_act', label: 'Акт выполненных работ' },
   { id: 'equipment_act', label: 'Акт по инструменту' },
+  { id: 'kpi', label: 'KPI сотрудников' },
+  { id: 'object_time', label: 'Затраты по объектам' },
+  { id: 'ks2', label: 'КС-2 (акт о приёмке)' },
+  { id: 'ks3', label: 'КС-3 (справка о стоимости)' },
+  { id: 'ks11', label: 'КС-11 (приёмка объекта)' },
 ];
 
 const COLUMNS_BY_REPORT = {
@@ -65,6 +70,48 @@ const COLUMNS_BY_REPORT = {
     { key: 'morning_status', label: 'Утро' },
     { key: 'evening_status', label: 'Вечер' },
     { key: 'is_mismatch', label: 'Совпадение' },
+  ],
+  kpi: [
+    { key: 'name', label: 'Сотрудник', minWidth: 220 },
+    { key: 'days_worked', label: 'Дней' },
+    { key: 'hours_total', label: 'Часов всего' },
+    { key: 'hours_per_day', label: 'Часов/день' },
+    { key: 'amount_total', label: 'Сумма, руб.' },
+    { key: 'amount_per_day', label: 'Выработка/день, руб.' },
+    { key: 'completed_assignments', label: 'Завершено назначений' },
+    { key: 'late_count', label: 'Опозданий' },
+  ],
+  object_time: [
+    { key: 'object_name', label: 'Объект', minWidth: 260 },
+    { key: 'brigades', label: 'Бригады', minWidth: 200 },
+    { key: 'session_count', label: 'Выездов' },
+    { key: 'session_hours', label: 'Часов' },
+    { key: 'amount_total', label: 'Сумма, руб.' },
+    { key: 'cost_per_hour', label: 'Стоимость часа, руб.' },
+  ],
+  ks2: [
+    { key: 'row_number', label: '№' },
+    { key: 'object', label: 'Объект', minWidth: 220 },
+    { key: 'item_number', label: 'Поз.' },
+    { key: 'work_name', label: 'Наименование работ', minWidth: 280 },
+    { key: 'unit', label: 'Ед.' },
+    { key: 'volume', label: 'Кол-во' },
+    { key: 'rate', label: 'Цена' },
+    { key: 'amount', label: 'Стоимость, руб.' },
+  ],
+  ks3: [
+    { key: 'object', label: 'Объект', minWidth: 260 },
+    { key: 'amount_year', label: 'С начала года' },
+    { key: 'amount_month', label: 'С начала месяца' },
+    { key: 'amount_period', label: 'Отчётный период' },
+    { key: 'amount_total', label: 'Всего' },
+  ],
+  ks11: [
+    { key: 'object', label: 'Объект', minWidth: 260 },
+    { key: 'first_work_date', label: 'Начало работ' },
+    { key: 'last_work_date', label: 'Окончание работ' },
+    { key: 'deadline', label: 'Дедлайн' },
+    { key: 'amount_total', label: 'Стоимость, руб.' },
   ],
 };
 
@@ -109,11 +156,17 @@ export default function ReportsPage() {
       if (reportType === 'piecework') response = await reportsApi.piecework(params);
       if (reportType === 'completion_act') response = await reportsApi.completionAct(params);
       if (reportType === 'equipment_act') response = await reportsApi.equipmentAct(params);
+      if (reportType === 'kpi') response = await reportsApi.kpi(params);
+      if (reportType === 'object_time') response = await reportsApi.objectTime(params);
+      if (reportType === 'ks2') response = await reportsApi.ks2(params);
+      if (reportType === 'ks3') response = await reportsApi.ks3(params);
+      if (reportType === 'ks11') response = await reportsApi.ks11(params);
 
       setRows(response?.data?.rows || []);
       setMeta({
         total_amount: response?.data?.total_amount,
         mismatch_count: response?.data?.mismatch_count,
+        total_hours: response?.data?.total_hours,
       });
     } catch (err) {
       setError(getApiErrorMessage(err, 'Не удалось загрузить отчёт'));

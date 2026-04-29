@@ -160,6 +160,10 @@ export const workdayApi = {
     api.post(`/workday/${workdayId}/equipment/`, data),
   equipmentDiff: (workdayId) => api.get(`/workday/${workdayId}/equipment/diff/`),
 
+  // GPS-чек бригады
+  gpsCheckList: (workdayId) => api.get(`/workday/${workdayId}/gps-check/`),
+  gpsCheckSubmit: (workdayId, data) => api.post(`/workday/${workdayId}/gps-check/`, data),
+
   // Приёмка
   pendingApproval: () => api.get('/workday/pending-approval/'),
   approve: (id, data) => api.post(`/workday/${id}/approve/`, data),
@@ -179,14 +183,23 @@ export const worksApi = {
     api.post(`/workday/works/${workId}/photos/`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
+  start: (workId, formData) =>
+    api.post(`/workday/works/${workId}/start/`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  finish: (workId, formData) =>
+    api.post(`/workday/works/${workId}/finish/`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  myAssignments: () => api.get('/workday/works/my-assignments/'),
 };
 
 // --- Мобильные эндпоинты (доступны бригадиру/монтажнику) ---
 export const mobileApi = {
   myBrigade: () => api.get('/workday/my-brigade/'),
   myObjects: () => api.get('/workday/my-objects/'),
-  priceItems: (priceListId) =>
-    api.get('/workday/price-items/', { params: { price_list: priceListId } }),
+  priceItems: (params = {}) =>
+    api.get('/workday/price-items/', { params }),
 };
 
 // --- Отчётность ---
@@ -196,11 +209,25 @@ export const reportsApi = {
   piecework: (params) => api.get('/workday/reports/piecework/', { params }),
   completionAct: (params) => api.get('/workday/reports/completion-act/', { params }),
   equipmentAct: (params) => api.get('/workday/reports/equipment-act/', { params }),
+  kpi: (params) => api.get('/workday/reports/kpi/', { params }),
+  objectTime: (params) => api.get('/workday/reports/object-time/', { params }),
+  ks2: (params) => api.get('/workday/reports/ks2/', { params }),
+  ks3: (params) => api.get('/workday/reports/ks3/', { params }),
+  ks11: (params) => api.get('/workday/reports/ks11/', { params }),
   exportReport: (format, params) =>
     api.get(`/workday/reports/export/${format}/`, {
       params,
       responseType: 'blob',
     }),
+};
+
+// --- Дашборды ---
+export const dashboardsApi = {
+  director: () => api.get('/workday/dashboards/director/'),
+  master: () => api.get('/workday/dashboards/master/'),
+  pm: () => api.get('/workday/dashboards/pm/'),
+  objectProgress: (objectId) => api.get(`/workday/dashboards/object-progress/${objectId}/`),
+  objectsWithPlans: () => api.get('/workday/dashboards/objects-with-plans/'),
 };
 
 export default api;

@@ -11,7 +11,14 @@
       "Bash(npm install:*)",
       "Bash(export PATH=\"$HOME/.nvm/versions/node/v24.12.0/bin:$PATH\")",
       "Bash(npx vite:*)",
-      "Bash(pandoc \"Проект ТЗ PWA Монтажники.docx\" -o temp_output.md)"
+      "Bash(pandoc \"Проект ТЗ PWA Монтажники.docx\" -o temp_output.md)",
+      "Bash(.venv/bin/python -c ' *)",
+      "Bash(../.venv/bin/python -c ' *)",
+      "Bash(DJANGO_SETTINGS_MODULE=config.settings ../.venv/bin/python manage.py migrate objects)",
+      "Bash(DJANGO_SETTINGS_MODULE=config.settings ../.venv/bin/python manage.py showmigrations objects)",
+      "Read(//private/tmp/**)",
+      "Bash(rm -rf shifts_extract)",
+      "Bash(unzip -o \"/Users/home/PycharmProjects/digital_installer/documentation/Логика_открытия_и_закрытия_смен_—_«СВ_ФИНАМ_Цифровой_монтажник».docx\" -d shifts_extract)"
     ]
   }
 }

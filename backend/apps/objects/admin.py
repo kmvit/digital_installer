@@ -7,7 +7,14 @@ from django.template.response import TemplateResponse
 from django.urls import path, reverse
 
 from .management.commands.import_objects import import_objects_from_file
-from .models import ObjectDocument, ObjectStage, ProjectObject, Stage
+from .models import City, ObjectDocument, ObjectStage, ObjectWorkPlan, ProjectObject, Stage
+
+
+@admin.register(City)
+class CityAdmin(admin.ModelAdmin):
+    list_display = ("id", "name")
+    search_fields = ("name",)
+    ordering = ("name",)
 
 
 class ObjectImportForm(forms.Form):
@@ -24,6 +31,13 @@ class StageAdmin(admin.ModelAdmin):
 class ObjectStageInline(admin.TabularInline):
     model = ObjectStage
     extra = 0
+
+
+class ObjectWorkPlanInline(admin.TabularInline):
+    model = ObjectWorkPlan
+    extra = 0
+    autocomplete_fields = ("work_type",)
+    fields = ("work_type", "planned_volume", "planned_start", "planned_end", "notes")
 
 
 class ObjectDocumentInline(admin.TabularInline):
@@ -48,16 +62,23 @@ class ProjectObjectForm(forms.ModelForm):
 class ProjectObjectAdmin(admin.ModelAdmin):
     form = ProjectObjectForm
     list_display = (
-        "id", "name", "customer",
+        "id", "name", "city", "customer",
         "decision_status", "construction_status", "materials_status", "pir_status", "as_built_status",
-        "current_stage", "price_list", "deadline", "geofence_status", "is_archived", "updated_at",
+        "current_stage", "deadline", "geofence_status", "is_archived", "updated_at",
     )
     list_filter = (
-        "is_archived", "price_list", "current_stage",
+        "is_archived", "current_stage", "city",
         "decision_status", "construction_status", "materials_status", "pir_status", "as_built_status",
     )
-    search_fields = ("name", "address", "customer")
-    inlines = [ObjectStageInline, ObjectDocumentInline]
+    search_fields = ("name", "address", "customer", "city__name")
+    filter_horizontal = ("available_work_types",)
+    inlines = [ObjectWorkPlanInline, ObjectStageInline, ObjectDocumentInline]
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == "available_work_types":
+            from apps.pricing.models import WorkType
+            kwargs["queryset"] = WorkType.objects.select_related("price_list")
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
     change_list_template = "admin/objects/projectobject/change_list.html"
     change_form_template = "admin/objects/projectobject/change_form.html"
 
@@ -98,7 +119,7 @@ class ProjectObjectAdmin(admin.ModelAdmin):
                 else:
                     self.message_user(
                         request,
-                        f"Импорт завершён: создано {result['created']}, пропущено {result['skipped']}.",
+                        f"Импорт завершён: создано {result['created']}, обновлено {result['updated']}, пропущено {result['skipped']}.",
                         level=messages.SUCCESS,
                     )
                     changelist_url = reverse("admin:objects_projectobject_changelist")

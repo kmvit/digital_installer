@@ -7,7 +7,7 @@ import {
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import PhotoCapture from '../components/PhotoCapture';
 import GpsStatus, { useGps } from '../components/GpsStatus';
-import { mobileApi, workdayApi, getApiErrorMessage } from '../api';
+import { mobileApi, workdayApi, authApi, getApiErrorMessage } from '../api';
 
 export default function ObjectSelectPage() {
   const navigate = useNavigate();
@@ -16,9 +16,22 @@ export default function ObjectSelectPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [photo, setPhoto] = useState(null);
+  const [photoMeta, setPhotoMeta] = useState(null);
+  const handlePhoto = (file, meta) => { setPhoto(file); setPhotoMeta(meta || null); };
   const [arriving, setArriving] = useState(false);
   const [error, setError] = useState('');
   const [workdayId, setWorkdayId] = useState(null);
+  const [forbidden, setForbidden] = useState(false);
+
+  useEffect(() => {
+    authApi.me()
+      .then((r) => {
+        if (!['foreman', 'administrator', 'director'].includes(r.data?.role)) {
+          setForbidden(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     Promise.all([mobileApi.myObjects(), workdayApi.current()])
@@ -37,13 +50,13 @@ export default function ObjectSelectPage() {
     const formData = new FormData();
     formData.append('project_object', selected.id);
     formData.append('photo', photo);
-    if (position) {
-      formData.append('latitude', position.latitude);
-      formData.append('longitude', position.longitude);
-    }
+    if (photoMeta?.captured_at) formData.append('captured_at', photoMeta.captured_at);
+    const lat = photoMeta?.latitude ?? position?.latitude;
+    const lng = photoMeta?.longitude ?? position?.longitude;
+    if (lat != null) formData.append('latitude', lat);
+    if (lng != null) formData.append('longitude', lng);
     try {
       const { data } = await workdayApi.arrive(workdayId, formData);
-      if (data.proximity?.warning) alert(data.proximity.warning);
       navigate(`/object/${data.id}`);
     } catch (err) {
       setError(getApiErrorMessage(err, 'Ошибка при отметке прибытия'));
@@ -51,6 +64,17 @@ export default function ObjectSelectPage() {
       setArriving(false);
     }
   };
+
+  if (forbidden) {
+    return (
+      <Box>
+        <Typography variant="h5" gutterBottom>Прибытие на объект</Typography>
+        <Alert severity="warning">
+          Отметку прибытия делает бригадир. Дождитесь, пока он откроет смену на объекте — вам придёт уведомление.
+        </Alert>
+      </Box>
+    );
+  }
 
   if (loading) return <Box sx={{ textAlign: 'center', mt: 8 }}><CircularProgress /></Box>;
 
@@ -70,9 +94,13 @@ export default function ObjectSelectPage() {
                 <Avatar sx={{ bgcolor: 'primary.light', mr: 2 }}>
                   <LocationOnIcon />
                 </Avatar>
-                <Box>
-                  <Typography variant="subtitle1">{obj.name}</Typography>
-                  <Typography variant="body2" color="text.secondary">{obj.address}</Typography>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="subtitle1">
+                    {[obj.city_name, obj.address].filter(Boolean).join(', ') || '—'}
+                  </Typography>
+                  {obj.name && (
+                    <Typography variant="body2" color="text.secondary">{obj.name}</Typography>
+                  )}
                   {obj.current_stage_name && <Chip label={obj.current_stage_name} size="small" sx={{ mt: 0.5 }} />}
                 </Box>
               </CardActionArea>
@@ -86,13 +114,17 @@ export default function ObjectSelectPage() {
         <Box>
           <Card elevation={2} sx={{ mb: 2, borderLeft: 4, borderColor: 'primary.main' }}>
             <CardContent>
-              <Typography variant="h6">{selected.name}</Typography>
-              <Typography variant="body2" color="text.secondary">{selected.address}</Typography>
+              <Typography variant="h6">
+                {[selected.city_name, selected.address].filter(Boolean).join(', ') || '—'}
+              </Typography>
+              {selected.name && (
+                <Typography variant="body2" color="text.secondary">{selected.name}</Typography>
+              )}
             </CardContent>
           </Card>
           <Card elevation={1} sx={{ mb: 2 }}>
             <CardContent>
-              <PhotoCapture onPhoto={setPhoto} label="Фото прибытия" required />
+              <PhotoCapture onPhoto={handlePhoto} label="Фото прибытия" required />
             </CardContent>
           </Card>
           <Box sx={{ display: 'flex', gap: 2 }}>

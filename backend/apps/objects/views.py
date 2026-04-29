@@ -44,13 +44,9 @@ class ProjectObjectViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = (
             ProjectObject.objects
-            .select_related("price_list", "current_stage", "project_manager", "brigade")
+            .select_related("current_stage", "project_manager", "brigade")
             .prefetch_related("object_stages__stage", "documents")
         )
-
-        price_list = self.request.query_params.get("price_list")
-        if price_list:
-            qs = qs.filter(price_list_id=price_list)
 
         archived = self.request.query_params.get("archived")
         if archived is not None:
@@ -182,6 +178,7 @@ class ProjectObjectViewSet(viewsets.ModelViewSet):
 
         return Response({
             "created": result["created"],
+            "updated": result["updated"],
             "skipped": result["skipped"],
             "errors": result["errors"],
         })

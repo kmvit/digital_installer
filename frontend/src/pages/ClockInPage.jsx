@@ -7,18 +7,31 @@ import {
 import GroupsIcon from '@mui/icons-material/Groups';
 import PhotoCapture from '../components/PhotoCapture';
 import GpsStatus, { useGps } from '../components/GpsStatus';
-import { workdayApi, mobileApi, getApiErrorMessage } from '../api';
+import { workdayApi, mobileApi, authApi, getApiErrorMessage } from '../api';
 
 export default function ClockInPage() {
   const navigate = useNavigate();
   const { position, error: gpsError, loading: gpsLoading } = useGps();
   const [photo, setPhoto] = useState(null);
+  const [photoMeta, setPhotoMeta] = useState(null);
+  const handlePhoto = (file, meta) => { setPhoto(file); setPhotoMeta(meta || null); };
   const [members, setMembers] = useState([]);
   const [selected, setSelected] = useState([]);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [currentWorkday, setCurrentWorkday] = useState(null);
   const [error, setError] = useState('');
+  const [forbidden, setForbidden] = useState(false);
+
+  useEffect(() => {
+    authApi.me()
+      .then((r) => {
+        if (!['foreman', 'administrator', 'director'].includes(r.data?.role)) {
+          setForbidden(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
@@ -56,10 +69,11 @@ export default function ClockInPage() {
     setError('');
     const formData = new FormData();
     formData.append('photo', photo);
-    if (position) {
-      formData.append('latitude', position.latitude);
-      formData.append('longitude', position.longitude);
-    }
+    if (photoMeta?.captured_at) formData.append('captured_at', photoMeta.captured_at);
+    const lat = photoMeta?.latitude ?? position?.latitude;
+    const lng = photoMeta?.longitude ?? position?.longitude;
+    if (lat != null) formData.append('latitude', lat);
+    if (lng != null) formData.append('longitude', lng);
     selected.forEach((id) => formData.append('workers_present', id));
     try {
       await workdayApi.clockIn(formData);
@@ -70,6 +84,17 @@ export default function ClockInPage() {
       setLoading(false);
     }
   };
+
+  if (forbidden) {
+    return (
+      <Box>
+        <Typography variant="h5" gutterBottom>Смена</Typography>
+        <Alert severity="warning">
+          Открыть смену может только бригадир. Дождитесь, пока он откроет смену — вы автоматически окажетесь в её составе.
+        </Alert>
+      </Box>
+    );
+  }
 
   if (initialLoading) {
     return <Box sx={{ textAlign: 'center', mt: 8 }}><CircularProgress /></Box>;
@@ -118,7 +143,7 @@ export default function ClockInPage() {
       <Card elevation={1} sx={{ mb: 2 }}>
         <CardContent>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>Фото бригады</Typography>
-          <PhotoCapture onPhoto={setPhoto} label="Сделать фото бригады" required />
+          <PhotoCapture onPhoto={handlePhoto} label="Сделать фото бригады" required />
         </CardContent>
       </Card>
 

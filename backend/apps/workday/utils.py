@@ -59,7 +59,7 @@ def check_proximity(lat: float, lng: float, project_object) -> dict:
     # Проверка по радиусу
     distance = haversine_distance(lat, lng, obj_lat, obj_lng)
     result["distance_m"] = round(distance)
-    radius = project_object.presence_radius or 500  # по умолчанию 500м
+    radius = project_object.presence_radius or 100  # по умолчанию 100 м
     result["within_zone"] = distance <= radius
     if not result["within_zone"]:
         result["warning"] = f"Вне радиуса присутствия ({result['distance_m']} м, допустимо {radius} м)"

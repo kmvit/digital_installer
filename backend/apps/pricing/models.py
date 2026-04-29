@@ -19,12 +19,46 @@ class PriceList(models.Model):
         return f"{self.title} v{self.version}"
 
 
+class WorkType(models.Model):
+    """Вид работ — группа позиций из одной базы расценок (раздел/блок)."""
+
+    price_list = models.ForeignKey(
+        PriceList,
+        on_delete=models.CASCADE,
+        related_name="work_types",
+        verbose_name="База расценок",
+    )
+    section = models.CharField(
+        max_length=255, blank=True, verbose_name="Раздел",
+        help_text="Название раздела (например, «Раздел 1. ...»).",
+    )
+    name = models.CharField(max_length=512, verbose_name="Наименование вида работ")
+    order = models.PositiveIntegerField(default=0, verbose_name="Порядок")
+
+    class Meta:
+        db_table = "core_worktype"
+        verbose_name = "Вид работ"
+        verbose_name_plural = "Виды работ"
+        ordering = ("price_list_id", "order", "name")
+        unique_together = ("price_list", "name")
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class PriceListItem(models.Model):
     price_list = models.ForeignKey(
         PriceList,
         on_delete=models.CASCADE,
         related_name="items",
         verbose_name="База расценок",
+    )
+    work_type = models.ForeignKey(
+        WorkType,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="items",
+        verbose_name="Вид работ",
     )
     item_number = models.CharField(max_length=64, blank=True, verbose_name="№ п/п")
     name = models.TextField(verbose_name="Наименование работ")

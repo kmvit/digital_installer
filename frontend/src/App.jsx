@@ -14,6 +14,11 @@ import SummaryPage from "./pages/SummaryPage";
 import ApprovalPage from "./pages/ApprovalPage";
 import HistoryPage from "./pages/HistoryPage";
 import ReportsPage from "./pages/ReportsPage";
+import MyAssignmentsPage from "./pages/MyAssignmentsPage";
+import DashboardDirectorPage from "./pages/DashboardDirectorPage";
+import DashboardMasterPage from "./pages/DashboardMasterPage";
+import DashboardPMPage from "./pages/DashboardPMPage";
+import ObjectProgressPage from "./pages/ObjectProgressPage";
 
 export default function App() {
   return (
@@ -39,6 +44,11 @@ export default function App() {
         <Route path="/approval" element={<ApprovalPage />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/my-assignments" element={<MyAssignmentsPage />} />
+        <Route path="/dashboard/director" element={<DashboardDirectorPage />} />
+        <Route path="/dashboard/master" element={<DashboardMasterPage />} />
+        <Route path="/dashboard/pm" element={<DashboardPMPage />} />
+        <Route path="/object-progress/:objectId" element={<ObjectProgressPage />} />
       </Route>
     </Routes>
   );

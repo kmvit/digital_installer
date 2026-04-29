@@ -125,3 +125,9 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": False,
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
+
+
+# Тестовый режим: пропускает GPS-проверки и допускает работу без геолокации.
+# Включается через переменную окружения WORKDAY_BYPASS_GPS=1.
+# По умолчанию — выключено в production, включено в DEBUG для локальной разработки.
+WORKDAY_BYPASS_GPS = os.getenv("WORKDAY_BYPASS_GPS", "1" if DEBUG else "0").lower() in ("1", "true", "yes")
