@@ -71,14 +71,7 @@ class ProjectObjectAdmin(admin.ModelAdmin):
         "decision_status", "construction_status", "materials_status", "pir_status", "as_built_status",
     )
     search_fields = ("name", "address", "customer", "city__name")
-    filter_horizontal = ("available_work_types",)
     inlines = [ObjectWorkPlanInline, ObjectStageInline, ObjectDocumentInline]
-
-    def formfield_for_manytomany(self, db_field, request, **kwargs):
-        if db_field.name == "available_work_types":
-            from apps.pricing.models import WorkType
-            kwargs["queryset"] = WorkType.objects.select_related("price_list")
-        return super().formfield_for_manytomany(db_field, request, **kwargs)
     change_list_template = "admin/objects/projectobject/change_list.html"
     change_form_template = "admin/objects/projectobject/change_form.html"
 

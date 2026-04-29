@@ -105,7 +105,6 @@ class ProjectObjectDetailSerializer(serializers.ModelSerializer):
             "pir_status", "pir_status_display",
             "as_built_status", "as_built_status_display",
             "current_stage", "current_stage_name",
-            "available_work_types",
             "project_manager", "project_manager_name",
             "brigade", "brigade_name",
             "deadline", "notes", "attrs", "is_archived",
@@ -143,7 +142,6 @@ class ProjectObjectWriteSerializer(serializers.ModelSerializer):
             "pir_status",
             "as_built_status",
             "current_stage",
-            "available_work_types",
             "project_manager", "brigade",
             "deadline", "notes", "attrs", "is_archived",
         )

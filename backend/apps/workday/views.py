@@ -126,9 +126,11 @@ class WorkDayViewSet(GenericViewSet):
                 project_object = session.project_object
 
         if project_object:
-            allowed_types = project_object.available_work_types.all()
-            if allowed_types.exists():
-                qs = PriceListItem.objects.filter(work_type__in=allowed_types)
+            allowed_type_ids = list(
+                project_object.work_plans.values_list("work_type_id", flat=True)
+            )
+            if allowed_type_ids:
+                qs = PriceListItem.objects.filter(work_type_id__in=allowed_type_ids)
             else:
                 qs = PriceListItem.objects.none()
         else:
@@ -743,9 +745,11 @@ class CompletedWorkViewSet(GenericViewSet):
         price_item = serializer.validated_data.get("price_list_item")
         project_object = session.project_object
         if price_item and project_object:
-            allowed_types = project_object.available_work_types.all()
-            if allowed_types.exists():
-                if price_item.work_type_id is None or not allowed_types.filter(pk=price_item.work_type_id).exists():
+            allowed_type_ids = set(
+                project_object.work_plans.values_list("work_type_id", flat=True)
+            )
+            if allowed_type_ids:
+                if price_item.work_type_id is None or price_item.work_type_id not in allowed_type_ids:
                     return Response(
                         {"price_list_item": "Эта работа не входит в виды работ, разрешённые для объекта."},
                         status=status.HTTP_400_BAD_REQUEST,

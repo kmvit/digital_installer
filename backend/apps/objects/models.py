@@ -158,15 +158,6 @@ class ProjectObject(models.Model):
         verbose_name="Текущая стадия",
     )
 
-    available_work_types = models.ManyToManyField(
-        "pricing.WorkType",
-        blank=True,
-        related_name="available_for_objects",
-        verbose_name="Виды работ для объекта",
-        help_text="Виды работ из базы расценок, разрешённые для этого объекта. "
-                  "Если пусто — доступны все виды/работы из привязанной базы.",
-    )
-
     project_manager = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -221,7 +212,8 @@ class ObjectWorkPlan(models.Model):
         verbose_name="Вид работ",
     )
     planned_volume = models.DecimalField(
-        max_digits=14, decimal_places=3, verbose_name="Плановый объём",
+        max_digits=14, decimal_places=3, default=0, verbose_name="Плановый объём",
+        help_text="Можно оставить 0, если просто нужно разрешить вид работ без планирования объёма.",
     )
     planned_start = models.DateField(null=True, blank=True, verbose_name="План: старт")
     planned_end = models.DateField(null=True, blank=True, verbose_name="План: завершение")
